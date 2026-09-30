@@ -1,0 +1,18 @@
+<resources>
+    <color name="azul_oscuro">#102A43</color>
+    <color name="azul_secundario">#4E88C7</color>
+    <color name="azul_superficie">#F4F8FC</color>
+    <color name="verde_principal">#2E7D32</color>
+    <color name="verde_oscuro">#1B5E20</color>
+    <color name="verde_claro">#66BB6A</color>
+    <color name="blanco">#FFFFFF</color>
+    <color name="blanco_suave">#EAF2FB</color>
+    <color name="gris_texto">#526579</color>
+    <color name="gris_borde">#C8D7E6</color>
+    <color name="error">#BA1A1A</color>
+    <color name="negro">#212121</color>
+    <color name="semaforo_neutro">#8293A5</color>
+    <color name="semaforo_verde">#2E7D5B</color>
+    <color name="semaforo_amarillo">#D89000</color>
+    <color name="semaforo_rojo">#C43D4D</color>
+</resources>

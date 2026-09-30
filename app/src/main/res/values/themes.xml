@@ -1,0 +1,18 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Base.Theme.Proyecto_Movil_Canchas"
+        parent="Theme.Material3.DayNight.NoActionBar">
+
+        <item name="colorPrimary">@color/verde_principal</item>
+        <item name="colorOnPrimary">@color/blanco</item>
+
+        <item name="colorSecondary">@color/verde_claro</item>
+        <item name="colorOnSecondary">@color/negro</item>
+
+        <item name="colorError">@color/error</item>
+
+    </style>
+
+    <style name="Theme.Proyecto_Movil_Canchas"
+        parent="Base.Theme.Proyecto_Movil_Canchas" />
+</resources>

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="@dimen/card_padding">
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/buttonRespaldo"
+        style="@style/Widget.Material3.Button.OutlinedButton"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/button_height"
+        android:text="@string/boton_programar_respaldo"
+        android:textAllCaps="false" />
+
+    <TextView
+        android:id="@+id/textViewEstadoRespaldo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/gap_small"
+        android:layout_marginBottom="@dimen/gap_medium"
+        android:text="@string/respaldo_sin_ejecutar"
+        android:textColor="@color/gris_texto"
+        android:textSize="@dimen/text_caption" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="@dimen/gap_medium"
+        android:text="@string/lista_gesto_eliminar"
+        android:textColor="@color/azul_oscuro"
+        android:textSize="@dimen/text_caption" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclerViewReservas"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingBottom="@dimen/gap_medium"
+            tools:listitem="@layout/item_reserva" />
+
+        <TextView
+            android:id="@+id/textViewListaVacia"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="@string/lista_vacia_reservas"
+            android:textColor="@color/gris_texto"
+            android:textSize="@dimen/text_body"
+            android:visibility="gone" />
+    </FrameLayout>
+</LinearLayout>

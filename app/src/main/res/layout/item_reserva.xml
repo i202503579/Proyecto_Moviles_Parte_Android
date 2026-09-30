@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="@dimen/gap_medium"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground"
+    app:cardBackgroundColor="@color/blanco"
+    app:cardCornerRadius="@dimen/card_radius"
+    app:cardElevation="@dimen/card_elevation"
+    app:strokeColor="@color/gris_borde"
+    app:strokeWidth="@dimen/stroke_width">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/item_padding">
+
+        <TextView
+            android:id="@+id/textViewCancha"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/azul_oscuro"
+            android:textSize="@dimen/text_item_title"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/textViewHorario"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/gap_small"
+            android:textColor="@color/gris_texto"
+            android:textSize="@dimen/text_body" />
+
+        <TextView
+            android:id="@+id/textViewCliente"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/gap_small"
+            android:textColor="@color/gris_texto"
+            android:textSize="@dimen/text_body" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/gap_medium"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <View
+                android:id="@+id/viewSemaforoTarjeta"
+                android:layout_width="@dimen/semaforo_tarjeta_size"
+                android:layout_height="@dimen/semaforo_tarjeta_size"
+                android:background="@drawable/bg_semaforo_neutro" />
+
+            <TextView
+                android:id="@+id/textViewEstado"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/gap_small"
+                android:background="@drawable/bg_estado_chip"
+                android:paddingHorizontal="@dimen/chip_padding_horizontal"
+                android:paddingVertical="@dimen/chip_padding_vertical"
+                android:textColor="@color/azul_oscuro"
+                android:textSize="@dimen/text_caption"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/chipBalon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/gap_small"
+                android:background="@drawable/bg_estado_chip"
+                android:paddingHorizontal="@dimen/chip_padding_horizontal"
+                android:paddingVertical="@dimen/chip_padding_vertical"
+                android:text="@string/chip_balon"
+                android:textColor="@color/azul_oscuro"
+                android:textSize="@dimen/text_caption"
+                android:textStyle="bold"
+                android:visibility="gone" />
+        </LinearLayout>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

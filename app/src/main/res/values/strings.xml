@@ -1,0 +1,46 @@
+<resources>
+    <string name="app_name">Alquiler de Canchitas</string>
+    <string name="titulo_principal">Alquiler de Canchitas</string>
+    <string name="subtitulo_principal">Registre y consulte las reservas de cancha de forma sencilla.</string>
+    <string name="boton_registro">Nueva reserva</string>
+    <string name="boton_lista">Reservas</string>
+
+    <string name="registro_titulo">Nueva reserva</string>
+    <string name="hint_cancha">Cancha</string>
+    <string name="hint_cliente">Nombre del cliente</string>
+    <string name="label_tipo_cliente">Tipo de cliente</string>
+    <string name="tipo_particular">Particular</string>
+    <string name="tipo_institucional">Institucional (profesor/academia)</string>
+    <string name="boton_hora_inicio">Hora inicio</string>
+    <string name="boton_hora_fin">Hora fin</string>
+    <string name="horario_sin_seleccionar">Horario: --:-- - --:--</string>
+    <string name="horario_formato">%1$s - %2$s</string>
+    <string name="hint_adelanto">Adelanto (S/)</string>
+    <string name="boton_guardar_reserva">Guardar reserva</string>
+    <string name="error_cancha">Seleccione una cancha</string>
+    <string name="error_cliente">Ingrese el nombre del cliente</string>
+    <string name="error_horario">Seleccione hora de inicio y fin (fin debe ser después del inicio)</string>
+    <string name="error_choque_horario">Esa cancha ya está reservada en ese horario</string>
+
+    <string name="cliente_formato">Cliente: %1$s (%2$s)</string>
+    <string name="chip_balon">Balón disponible</string>
+    <string name="lista_vacia_reservas">Aún no hay reservas registradas.</string>
+    <string name="lista_gesto_eliminar">Deslice una tarjeta para eliminarla.</string>
+    <string name="dialogo_boton_aceptar">Entendido</string>
+    <string name="boton_registrar_pago">Registrar pago</string>
+    <string name="boton_prestamo_balon">Préstamo de balón</string>
+    <string name="pago_registrado_pendiente">Registrar pago (pendiente de implementar)</string>
+    <string name="prestamo_pendiente">Préstamo de balón (pendiente de implementar)</string>
+    <string name="dialogo_eliminar_titulo">Eliminar reserva</string>
+    <string name="dialogo_eliminar_mensaje">¿Desea eliminar la reserva de %2$s en %1$s?</string>
+    <string name="dialogo_eliminar_confirmar">Eliminar</string>
+    <string name="dialogo_cancelar">Cancelar</string>
+    <string name="error_eliminar_reserva">No fue posible eliminar la reserva.</string>
+
+    <string name="boton_programar_respaldo">Sincronizar reservas</string>
+    <string name="respaldo_sin_ejecutar">Todavía no se ha sincronizado.</string>
+    <string name="respaldo_programado">Sincronización programada. Se ejecutará en segundo plano.</string>
+    <string name="respaldo_no_programado">No fue posible programar la sincronización.</string>
+    <string name="respaldo_ultimo_formato">Última sincronización: %1$s</string>
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+</resources>
