@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.cibertec.ticketaula"
+    namespace = "com.cibertec.proyecto_movil_canchas"
     compileSdk = 36
 
     defaultConfig {

@@ -1,60 +1,76 @@
 package com.cibertec.proyecto_movil_canchas.adapter
 
-import android.os.Bundle
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import com.cibertec.ticketaula.R
+import androidx.recyclerview.widget.RecyclerView
+import com.cibertec.proyecto_movil_canchas.R
+import com.cibertec.proyecto_movil_canchas.databinding.ItemReservaBinding
+import com.cibertec.proyecto_movil_canchas.model.Reserva
+import java.text.SimpleDateFormat
+import java.util.Locale
 
-// TODO: Rename parameter arguments, choose names that match
-// the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
-private const val ARG_PARAM1 = "param1"
-private const val ARG_PARAM2 = "param2"
 
-/**
- * A simple [Fragment] subclass.
- * Use the [ReservaAdapter.newInstance] factory method to
- * create an instance of this fragment.
- */
-class ReservaAdapter : Fragment() {
-    // TODO: Rename and change types of parameters
-    private var param1: String? = null
-    private var param2: String? = null
+class ReservaAdapter(
+    private val onReservaClick: (Reserva) -> Unit
+    ) : RecyclerView.Adapter<ReservaAdapter.ReservaViewHolder>() {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        arguments?.let {
-            param1 = it.getString(ARG_PARAM1)
-            param2 = it.getString(ARG_PARAM2)
+        private val reservas = mutableListOf<Reserva>()
+        private val formatoHora = SimpleDateFormat("HH:mm", Locale.getDefault())
+
+        fun actualizar(nuevasReservas: List<Reserva>) {
+            val cantidadAnterior = reservas.size
+            reservas.clear()
+            if (cantidadAnterior > 0) notifyItemRangeRemoved(0, cantidadAnterior)
+            reservas.addAll(nuevasReservas)
+            if (reservas.isNotEmpty()) notifyItemRangeInserted(0, reservas.size)
         }
-    }
 
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View? {
-        // Inflate the layout for this fragment
-        return inflater.inflate(R.layout.fragment_reserva_adapter, container, false)
-    }
+        fun obtenerReserva(position: Int): Reserva = reservas[position]
 
-    companion object {
-        /**
-         * Use this factory method to create a new instance of
-         * this fragment using the provided parameters.
-         *
-         * @param param1 Parameter 1.
-         * @param param2 Parameter 2.
-         * @return A new instance of fragment ReservaAdapter.
-         */
-        // TODO: Rename and change types and number of parameters
-        @JvmStatic
-        fun newInstance(param1: String, param2: String) =
-            ReservaAdapter().apply {
-                arguments = Bundle().apply {
-                    putString(ARG_PARAM1, param1)
-                    putString(ARG_PARAM2, param2)
+        fun restaurarTarjeta(position: Int) = notifyItemChanged(position)
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ReservaViewHolder {
+            val binding = ItemReservaBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+            return ReservaViewHolder(binding)
+        }
+
+        override fun onBindViewHolder(holder: ReservaViewHolder, position: Int) {
+            holder.vincular(reservas[position])
+        }
+
+        override fun getItemCount(): Int = reservas.size
+
+        inner class ReservaViewHolder(private val binding: ItemReservaBinding) :
+            RecyclerView.ViewHolder(binding.root) {
+
+            fun vincular(reserva: Reserva) {
+                binding.textViewCancha.text = reserva.canchaNombre
+                binding.textViewHorario.text = binding.root.context.getString(
+                    R.string.horario_formato,
+                    formatoHora.format(reserva.horaInicio),
+                    formatoHora.format(reserva.horaFin)
+                )
+                binding.textViewCliente.text = binding.root.context.getString(
+                    R.string.cliente_formato,
+                    reserva.clienteNombre,
+                    reserva.tipoCliente
+                )
+                binding.textViewEstado.text = reserva.estado
+
+                // RN08: la etiqueta de balón solo se muestra si la reserva es institucional.
+                binding.chipBalon.visibility =
+                    if (reserva.tipoCliente == "Institucional") View.VISIBLE else View.GONE
+
+                val fondoSemaforo = when (reserva.estado) {
+                    "Confirmada" -> R.drawable.bg_semaforo_verde
+                    "Pendiente" -> R.drawable.bg_semaforo_amarillo
+                    "Cancelada" -> R.drawable.bg_semaforo_rojo
+                    else -> R.drawable.bg_semaforo_neutro
                 }
+                binding.viewSemaforoTarjeta.setBackgroundResource(fondoSemaforo)
+
+                binding.root.setOnClickListener { onReservaClick(reserva) }
             }
-    }
+        }
 }

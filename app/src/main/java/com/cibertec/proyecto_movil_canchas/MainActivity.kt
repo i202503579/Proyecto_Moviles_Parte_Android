@@ -4,8 +4,9 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.cibertec.proyecto_movil_canchas.databinding.ActivityMainBinding
-import com.cibertec.proyecto_movil_cancha.canchitas.ui.ListaReservasFragment
-import com.cibertec.canchitas.ui.RegistroReservaFragment
+import com.cibertec.proyecto_movil_canchas.ui.ListaReservasFragment
+import com.cibertec.proyecto_movil_canchas.ui.RegistroReservaFragment
+
 
 class MainActivity : AppCompatActivity() {
 

@@ -37,7 +37,6 @@
         android:text="@string/boton_registrar_pago"
         android:textAllCaps="false" />
 
-    <!-- RN08: solo se habilita si la reserva es institucional -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/buttonPrestamoBalonDialog"
         style="@style/Widget.Material3.Button.OutlinedButton"
