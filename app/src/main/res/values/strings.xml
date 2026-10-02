@@ -20,6 +20,7 @@
     <string name="boton_guardar_reserva">Guardar reserva</string>
     <string name="error_cancha">Seleccione una cancha</string>
     <string name="error_cliente">Ingrese el nombre del cliente</string>
+    <string name="error_adelanto">Ingrese el adelanto</string>
     <string name="error_horario">Seleccione hora de inicio y fin (fin debe ser después del inicio)</string>
     <string name="error_choque_horario">Esa cancha ya está reservada en ese horario</string>
 
@@ -39,6 +40,8 @@
     <string name="dialogo_eliminar_confirmar">Eliminar</string>
     <string name="dialogo_cambiar_estado_titulo">Cambiar estado de %1$s</string>
     <string name="dialogo_guardar">Guardar cambios</string>
+    <string name="guardando_reserva">Guardando...</string>
+    <string name="error_guardando_reserva">No se pudo guardar la reserva</string>
     <string name="error_actualizar_reserva">Error al actualizar reserva</string>
     <string name="dialogo_cancelar">Cancelar</string>
     <string name="estado_confirmado">Confirmada</string>

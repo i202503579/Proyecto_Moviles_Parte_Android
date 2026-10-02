@@ -22,6 +22,14 @@
         <item>Domingo</item>
     </string-array>
 
+    <string-array name="canchas_disponibles">
+        <item>Cancha 1 - Grass sintético</item>
+        <item>Cancha 2 - Grass sintético</item>
+        <item>Cancha 3 - Grass natural</item>
+        <item>Cancha 4 - Cancha cemento</item>
+    </string-array>
+
+
     <string-array name="roles_usuario">
         <item>Administrador</item>
         <item>Operador</item>

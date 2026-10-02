@@ -8,7 +8,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
-import androidx.lifecycle.VIEW_MODEL_STORE_OWNER_KEY
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -32,16 +31,6 @@ class ListaReservasFragment : Fragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         reservaStore = ReservaStore(requireContext().applicationContext)
-        reservaStore.agregar(
-            canchaNombre = "Cancha 1 - Grass sintético",
-            clienteNombre = "Juan Pérez",
-            horaInicio = System.currentTimeMillis(),
-            horaFin = System.currentTimeMillis() + 3_600_000,
-            estado = "Confirmada",
-            tipoCliente = "Particular",
-            adelanto = 20.0,
-            saldo = 30.0
-        )
     }
 
     override fun onCreateView(
@@ -127,7 +116,7 @@ class ListaReservasFragment : Fragment() {
     }
     private fun mostrarEdicion(reserva: Reserva, posicion: Int){
         //seria cambiar el estado de la cancha para no causar mayor cambio en el sistema
-        val estados = arrayOf("Pendiente", "Confirmada", "Completada", "Cancelada")
+        val estados = arrayOf("Pendiente", "Confirmada", "Cancelada")
         val indiceActual = estados.indexOf(reserva.estado).let { if (it == -1) 0 else it }
         var estadoSeleccionado = reserva.estado
 

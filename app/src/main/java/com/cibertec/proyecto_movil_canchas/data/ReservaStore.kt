@@ -93,7 +93,7 @@ class ReservaStore(context: Context) {
         )
     }
 
-    fun eliminar(id: Int): Int {
+    fun eliminacionLogica(id: Int): Int {
         val db = dbHelper.writableDatabase
         val valores = ContentValues().apply {
             put(ReservaContrato.COLUMNA_ESTADO, "Cancelada")
@@ -101,6 +101,15 @@ class ReservaStore(context: Context) {
         return db.update(
             ReservaContrato.TABLA_RESERVAS,
             valores,
+            "${ReservaContrato.COLUMNA_ID} = ?",
+            arrayOf(id.toString())
+        )
+    }
+    fun eliminar(id: Int): Int {
+        val db = dbHelper.writableDatabase
+
+        return db.delete(
+            ReservaContrato.TABLA_RESERVAS,
             "${ReservaContrato.COLUMNA_ID} = ?",
             arrayOf(id.toString())
         )
