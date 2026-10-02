@@ -13,6 +13,7 @@
     <dimen name="stroke_width">1dp</dimen>
     <dimen name="semaforo_tarjeta_size">18dp</dimen>
     <dimen name="text_title">25sp</dimen>
+    <dimen name="dialog_semaforo_size">28dp</dimen>
     <dimen name="text_section">20sp</dimen>
     <dimen name="text_item_title">17sp</dimen>
     <dimen name="text_body">14sp</dimen>

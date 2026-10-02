@@ -11,6 +11,7 @@
     <string name="label_tipo_cliente">Tipo de cliente</string>
     <string name="tipo_particular">Particular</string>
     <string name="tipo_institucional">Institucional (profesor/academia)</string>
+    <string name="institucional">Institucional</string>
     <string name="boton_hora_inicio">Hora inicio</string>
     <string name="boton_hora_fin">Hora fin</string>
     <string name="horario_sin_seleccionar">Horario: --:-- - --:--</string>
@@ -23,6 +24,7 @@
     <string name="error_choque_horario">Esa cancha ya está reservada en ese horario</string>
 
     <string name="cliente_formato">Cliente: %1$s (%2$s)</string>
+    <string name="hora_formato">HH:mm</string>
     <string name="chip_balon">Balón disponible</string>
     <string name="lista_vacia_reservas">Aún no hay reservas registradas.</string>
     <string name="lista_gesto_eliminar">Deslice una tarjeta para eliminarla.</string>
@@ -33,8 +35,15 @@
     <string name="prestamo_pendiente">Préstamo de balón (pendiente de implementar)</string>
     <string name="dialogo_eliminar_titulo">Eliminar reserva</string>
     <string name="dialogo_eliminar_mensaje">¿Desea eliminar la reserva de %2$s en %1$s?</string>
+    <string name="dialogo_formato_horario">Su horario es desde %1$s hasta las %2$s</string>
     <string name="dialogo_eliminar_confirmar">Eliminar</string>
+    <string name="dialogo_cambiar_estado_titulo">Cambiar estado de %1$s</string>
+    <string name="dialogo_guardar">Guardar cambios</string>
+    <string name="error_actualizar_reserva">Error al actualizar reserva</string>
     <string name="dialogo_cancelar">Cancelar</string>
+    <string name="estado_confirmado">Confirmada</string>
+    <string name="estado_pendiente">Pendiente</string>
+    <string name="estado_cancelada">Cancelada</string>
     <string name="error_eliminar_reserva">No fue posible eliminar la reserva.</string>
 
     <string name="boton_programar_respaldo">Sincronizar reservas</string>

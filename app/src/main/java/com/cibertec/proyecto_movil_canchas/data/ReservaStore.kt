@@ -2,6 +2,7 @@ package com.cibertec.proyecto_movil_canchas.data
 
 import android.content.ContentValues
 import android.content.Context
+import androidx.core.R
 import com.cibertec.proyecto_movil_canchas.model.Reserva
 
 class ReservaStore(context: Context) {
@@ -79,10 +80,27 @@ class ReservaStore(context: Context) {
         )
     }
 
+    fun actualizarEstado(id: Int, estado: String): Int{
+        val db = dbHelper.writableDatabase
+        val valores = ContentValues().apply {
+            put(ReservaContrato.COLUMNA_ESTADO, estado)
+        }
+        return db.update(
+            ReservaContrato.TABLA_RESERVAS,
+            valores,
+            "${ReservaContrato.COLUMNA_ID} = ?",
+            arrayOf(id.toString())
+        )
+    }
+
     fun eliminar(id: Int): Int {
         val db = dbHelper.writableDatabase
-        return db.delete(
+        val valores = ContentValues().apply {
+            put(ReservaContrato.COLUMNA_ESTADO, "Cancelada")
+        }
+        return db.update(
             ReservaContrato.TABLA_RESERVAS,
+            valores,
             "${ReservaContrato.COLUMNA_ID} = ?",
             arrayOf(id.toString())
         )
