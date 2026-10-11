@@ -1,17 +1,24 @@
 package com.cibertec.proyecto_movil_canchas.ui
 
+import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.os.Bundle
 import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ArrayAdapter
 import android.widget.Toast
+import androidx.core.widget.doAfterTextChanged
 import com.cibertec.proyecto_movil_canchas.MainActivity
 import com.cibertec.proyecto_movil_canchas.R
-import com.cibertec.proyecto_movil_canchas.data.ReservaContrato
+import com.cibertec.proyecto_movil_canchas.data.CanchaStore
+import com.cibertec.proyecto_movil_canchas.data.ClienteStore
 import com.cibertec.proyecto_movil_canchas.data.ReservaStore
 import com.cibertec.proyecto_movil_canchas.databinding.FragmentRegistroReservaBinding
+import com.cibertec.proyecto_movil_canchas.model.Cancha
+import com.cibertec.proyecto_movil_canchas.model.Cliente
+import com.cibertec.proyecto_movil_canchas.model.ResultadoReserva
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -19,22 +26,24 @@ import java.util.Locale
 
 class RegistroReservaFragment : Fragment() {
 
-    // El signo ? permite que _binding contenga null cuando la vista todavía no existe
-    // o ya fue destruida. El guion bajo es una convención para la propiedad interna.
     private var _binding: FragmentRegistroReservaBinding? = null
-    // get() crea un getter personalizado. !! afirma que _binding no es null mientras
-    // se usa la vista del Fragment; por eso se libera obligatoriamente en onDestroyView().
     private val binding get() = _binding!!
 
     private lateinit var reservaStore: ReservaStore
+    private lateinit var canchaStore: CanchaStore
+    private lateinit var clienteStore: ClienteStore
 
-    private var horaInicioSeleccionada: Calendar? = null
-    private var horaFinSeleccionada: Calendar? = null
+    private var canchas: List<Cancha> = emptyList()
+    private var canchaSeleccionada: Cancha? = null
+    private var inicioSeleccionado: Calendar? = null
+    private var clienteExistente: Cliente? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-// applicationContext evita que estas clases conserven accidentalmente la vista.
-        reservaStore = ReservaStore(requireContext().applicationContext)
+        val contexto = requireContext().applicationContext
+        reservaStore = ReservaStore(contexto)
+        canchaStore = CanchaStore(contexto)
+        clienteStore = ClienteStore(contexto)
 
     }
 
@@ -49,152 +58,220 @@ class RegistroReservaFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        configurarSelectorCancha()
-        binding.buttonGuardarReserva.setOnClickListener {
-            registrarReserva()
+        cargarCanchas()
+
+        binding.buttonBuscarCliente.setOnClickListener { buscarCliente() }
+        binding.buttonFechaHora.setOnClickListener { elegirFechaYHora() }
+        binding.buttonGuardarReserva.setOnClickListener { guardarReserva() }
+
+        // Si cambian el documento después de buscar, ya no es el mismo cliente.
+        binding.editTextDocumento.doAfterTextChanged {
+            binding.inputLayoutDocumento.error = null
+            if (clienteExistente != null) reiniciarCliente()
         }
-        binding.buttonHoraInicio.setOnClickListener { elegirHora(esInicio = true) }
-        binding.buttonHoraFin.setOnClickListener { elegirHora(esInicio = false) }
     }
-    private fun elegirHora(esInicio: Boolean) {
-        val ahora = Calendar.getInstance()
-        TimePickerDialog(
-            requireContext(),
-            { _, horas, minutos ->
-                val seleccion = Calendar.getInstance().apply {
-                    set(Calendar.HOUR_OF_DAY, horas)
-                    set(Calendar.MINUTE, minutos)
-                    set(Calendar.SECOND, 0)
+    private fun cargarCanchas() {
+        Thread {
+            val lista = canchaStore.obtenerActivas()
+            activity?.runOnUiThread {
+                val bindingActual = _binding ?: return@runOnUiThread
+                canchas = lista
+                // ArrayAdapter de objetos: muestra toString() (el nombre) pero conserva
+                // el objeto completo, con su id y su precio, al seleccionarlo.
+                bindingActual.autoCompleteCancha.setAdapter(
+                    ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, lista)
+                )
+                bindingActual.autoCompleteCancha.setOnItemClickListener { _, _, posicion, _ ->
+                    val cancha = canchas[posicion]
+                    canchaSeleccionada = cancha
+                    bindingActual.inputLayoutCancha.error = null
+                    bindingActual.textViewPrecio.text =
+                        getString(R.string.precio_cancha_formato, cancha.precioAlquiler)
+                    bindingActual.textViewPrecio.visibility = View.VISIBLE
                 }
-                if (esInicio) horaInicioSeleccionada = seleccion else horaFinSeleccionada = seleccion
-                actualizarTextoHorario()
-            },
-            ahora.get(Calendar.HOUR_OF_DAY),
-            ahora.get(Calendar.MINUTE),
-            true
-        ).show()
+            }
+        }.start()
     }
-
-    private fun actualizarTextoHorario() {
-        val formato = SimpleDateFormat("HH:mm", Locale.getDefault())
-        val textoInicio = horaInicioSeleccionada?.let { formato.format(it.time) } ?: "--:--"
-        val textoFin = horaFinSeleccionada?.let { formato.format(it.time) } ?: "--:--"
-        binding.textViewHorarioSeleccionado.text = getString(R.string.horario_formato, textoInicio, textoFin)
-    }
-    private fun configurarSelectorCancha(){
-        binding.autoCompleteCancha.setSimpleItems(R.array.canchas_disponibles)
-        // El evento entrega cuatro parámetros. Cada _ indica que ese parámetro existe,
-        // pero no se necesita dentro de esta lambda. -> marca el inicio de su cuerpo.
-        binding.autoCompleteCancha.setOnItemClickListener { _, _, _, _ ->
-            binding.inputLayoutCancha.error = null
+    private fun buscarCliente() {
+        val documento = binding.editTextDocumento.text.toString().trim()
+        if (documento.isBlank()) {
+            binding.inputLayoutDocumento.error = getString(R.string.error_documento)
+            return
         }
+        Thread {
+            val cliente = clienteStore.buscarPorDocumento(documento)
+            activity?.runOnUiThread {
+                if (_binding == null) return@runOnUiThread
+                clienteExistente = cliente
+                if (cliente != null) mostrarClienteExistente(cliente) else mostrarClienteNuevo()
+            }
+        }.start()
+    }
+    private fun mostrarClienteExistente(cliente: Cliente) {
+        binding.editTextCliente.setText(cliente.nombre)
+        binding.editTextTelefono.setText(cliente.telefono.orEmpty())
+        if (cliente.tipoCliente == TIPO_INSTITUCIONAL) {
+            binding.radioInstitucional.isChecked = true
+        } else {
+            binding.radioParticular.isChecked = true
+        }
+        bloquearDatosCliente(true)
+        binding.textViewEstadoCliente.setText(R.string.cliente_encontrado)
+        binding.textViewEstadoCliente.visibility = View.VISIBLE
     }
 
-    private fun registrarReserva() {
-        val nombreCancha = obtenerCanchaSeleccionada()
-        val nombre = binding.editTextCliente.text.toString().trim()
-        val tipoCliente = obtenerTipoCliente()
-        val horaInicio = horaInicioSeleccionada
-        val horaFin = horaFinSeleccionada
-        val adelanto = binding.editTextAdelanto.text.toString().toDoubleOrNull()
+    private fun mostrarClienteNuevo() {
+        bloquearDatosCliente(false)
+        binding.textViewEstadoCliente.setText(R.string.cliente_nuevo)
+        binding.textViewEstadoCliente.visibility = View.VISIBLE
+    }
 
-        binding.inputLayoutCliente.error = null
+    private fun reiniciarCliente() {
+        clienteExistente = null
+        bloquearDatosCliente(false)
+        binding.editTextCliente.text?.clear()
+        binding.editTextTelefono.text?.clear()
+        binding.radioParticular.isChecked = true
+        binding.textViewEstadoCliente.visibility = View.GONE
+    }
+    private fun bloquearDatosCliente(bloquear: Boolean) {
+        binding.editTextCliente.isEnabled = !bloquear
+        binding.editTextTelefono.isEnabled = !bloquear
+        binding.radioParticular.isEnabled = !bloquear
+        binding.radioInstitucional.isEnabled = !bloquear
+    }
+    private fun elegirFechaYHora() {
+        val ahora = Calendar.getInstance()
+        DatePickerDialog(
+            requireContext(),
+            { _, anio, mes, dia ->
+                TimePickerDialog(
+                    requireContext(),
+                    { _, hora, minuto ->
+                        inicioSeleccionado = Calendar.getInstance().apply {
+                            set(anio, mes, dia, hora, minuto, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }
+                        actualizarTextoHorario()
+                    },
+                    ahora.get(Calendar.HOUR_OF_DAY),
+                    0,
+                    true
+                ).show()
+            },
+            ahora.get(Calendar.YEAR),
+            ahora.get(Calendar.MONTH),
+            ahora.get(Calendar.DAY_OF_MONTH)
+        ).apply {
+            datePicker.minDate = ahora.timeInMillis // no se reserva en días pasados
+        }.show()
+    }
+    private fun actualizarTextoHorario() {
+        val inicio = inicioSeleccionado ?: return
+        // Regla de negocio: toda reserva dura exactamente 1 hora.
+        val fin = (inicio.clone() as Calendar).apply { add(Calendar.HOUR_OF_DAY, 1) }
+        val formatoFecha = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+        val formatoHora = SimpleDateFormat("HH:mm", Locale.getDefault())
+        binding.textViewHorarioSeleccionado.text = getString(
+            R.string.horario_reserva_formato,
+            formatoFecha.format(inicio.time),
+            formatoHora.format(inicio.time),
+            formatoHora.format(fin.time)
+        )
+        binding.textViewErrorFormulario.visibility = View.GONE
+    }
+    private fun guardarReserva() {
+        val cancha = canchaSeleccionada
+        val documento = binding.editTextDocumento.text.toString().trim()
+        val nombre = binding.editTextCliente.text.toString().trim()
+        val telefono = binding.editTextTelefono.text.toString().trim().ifBlank { null }
+        val tipoCliente = if (binding.radioInstitucional.isChecked) TIPO_INSTITUCIONAL else TIPO_PARTICULAR
+        val inicio = inicioSeleccionado
+
         binding.inputLayoutCancha.error = null
-        binding.inputLayoutAdelanto.error = null
+        binding.inputLayoutDocumento.error = null
+        binding.inputLayoutCliente.error = null
         binding.textViewErrorFormulario.visibility = View.GONE
 
-
         var formularioValido = true
+        if (cancha == null) {
+            binding.inputLayoutCancha.error = getString(R.string.error_cancha)
+            formularioValido = false
+        }
+        if (documento.isBlank()) {
+            binding.inputLayoutDocumento.error = getString(R.string.error_documento)
+            formularioValido = false
+        }
         if (nombre.isBlank()) {
             binding.inputLayoutCliente.error = getString(R.string.error_cliente)
             formularioValido = false
         }
-        if (nombreCancha == null) {
-            binding.inputLayoutCancha.error = getString(R.string.error_cancha)
+        if (inicio == null) {
+            mostrarError(getString(R.string.error_fecha_hora))
             formularioValido = false
         }
-        if (tipoCliente == null) {
-            binding.radioGroupTipoCliente.requestFocus()
-            binding.textViewErrorFormulario.text =
-                "Selecciona un tipo de cliente"
-            binding.textViewErrorFormulario.visibility = View.VISIBLE
-            formularioValido = false
-        }
-        if (horaInicio == null || horaFin == null || !horaFin.after(horaInicio)) {
-            binding.textViewErrorFormulario.text = getString(R.string.error_horario)
-            binding.textViewErrorFormulario.visibility = View.VISIBLE
-            formularioValido = false
-        }
-        if (adelanto == null || adelanto < ADELANTO_MINIMO) {
-            binding.inputLayoutAdelanto.error = getString(R.string.error_adelanto)
-            formularioValido = false
-        }
-        if (!formularioValido || nombreCancha == null || tipoCliente == null || horaInicio == null || horaFin == null || adelanto == null) {
-            return
-        }
+        if (!formularioValido || cancha == null || inicio == null) return
+
+        // Si el cliente ya existía se usa tal cual; si no, se crea junto con la reserva.
+        val cliente = clienteExistente ?: Cliente(
+            nombre = nombre,
+            numeroDocumento = documento,
+            telefono = telefono,
+            tipoCliente = tipoCliente
+        )
+
         binding.buttonGuardarReserva.isEnabled = false
         binding.buttonGuardarReserva.setText(R.string.guardando_reserva)
 
         Thread {
-            val idGenerado = runCatching {
-                reservaStore.agregar(
-                    canchaNombre = nombreCancha,
-                    clienteNombre = nombre,
-                    horaInicio = horaInicio.timeInMillis,
-                    horaFin = horaFin.timeInMillis,
-                    estado = ESTADO_POR_DEFECTO,
-                    tipoCliente = tipoCliente,
-                    adelanto = adelanto,
-                    saldo = SALDO_MINIMO
-                )
-            }.getOrDefault(-1L)
+            val resultado = reservaStore.agregar(cancha, cliente, inicio.timeInMillis)
 
             activity?.runOnUiThread {
                 val bindingActual = _binding ?: return@runOnUiThread
                 bindingActual.buttonGuardarReserva.isEnabled = true
-                bindingActual.buttonGuardarReserva.setText(R.string.dialogo_guardar)
+                bindingActual.buttonGuardarReserva.setText(R.string.boton_guardar_reserva)
 
-                if (idGenerado == -1L) {
-                    Toast.makeText(
-                        requireContext(),
-                        R.string.error_guardando_reserva,
-                        Toast.LENGTH_LONG
-                    ).show()
-                    return@runOnUiThread
+                when (resultado) {
+                    is ResultadoReserva.EXITO -> {
+                        limpiarFormulario()
+                        (activity as? MainActivity)?.abrirLista()
+                    }
+                    ResultadoReserva.HorarioOcupado ->
+                        mostrarError(getString(R.string.error_horario_ocupado))
+                    ResultadoReserva.Error ->
+                        Toast.makeText(
+                            requireContext(),
+                            R.string.error_guardando_reserva,
+                            Toast.LENGTH_LONG
+                        ).show()
                 }
-                limpiarFormulario()
-                (activity as? MainActivity)?.abrirLista()
             }
-
         }.start()
     }
-    private fun obtenerCanchaSeleccionada(): String?{
-        return binding.autoCompleteCancha.text.toString()
-            .takeIf { cancha -> cancha.isNotBlank() }
+    private fun mostrarError(mensaje: String) {
+        binding.textViewErrorFormulario.text = mensaje
+        binding.textViewErrorFormulario.visibility = View.VISIBLE
     }
-    private fun obtenerTipoCliente(): String?{
-        return when(binding.radioGroupTipoCliente.checkedRadioButtonId){
-            R.id.radioInstitucional -> getString(R.string.institucional)
-            R.id.radioParticular -> getString(R.string.tipo_particular)
-            else -> null
-        }
-    }
-    private fun limpiarFormulario(){
-        binding.editTextCliente.text?.clear()
-        binding.editTextAdelanto.text?.clear()
-        binding.autoCompleteCancha.setText(null, false)
-        binding.radioGroupTipoCliente.clearCheck()
 
+    private fun limpiarFormulario() {
+        binding.autoCompleteCancha.setText(null, false)
+        canchaSeleccionada = null
+        binding.textViewPrecio.visibility = View.GONE
+
+        binding.editTextDocumento.text?.clear()
+        reiniciarCliente()
+
+        inicioSeleccionado = null
+        binding.textViewHorarioSeleccionado.setText(R.string.horario_reserva_sin_seleccionar)
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
     }
-    companion object {
-        private const val ADELANTO_MINIMO = 0.0
-        private const val SALDO_MINIMO = 0.0
-        private const val ESTADO_POR_DEFECTO = "Confirmada"
 
+    companion object {
+        private const val TIPO_PARTICULAR = "Particular"
+        private const val TIPO_INSTITUCIONAL = "Institucional"
     }
 }

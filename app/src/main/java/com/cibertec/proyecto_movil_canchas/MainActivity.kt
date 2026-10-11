@@ -29,11 +29,9 @@ class MainActivity : AppCompatActivity() {
             mostrarFragmento(RegistroReservaFragment())
         }
     }
-
     fun abrirLista() {
         mostrarFragmento(ListaReservasFragment())
     }
-
     private fun mostrarFragmento(fragment: Fragment) {
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragmentContainer, fragment)

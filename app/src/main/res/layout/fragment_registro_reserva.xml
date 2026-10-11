@@ -1,153 +1,188 @@
 <?xml version="1.0" encoding="utf-8"?>
-    <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-        xmlns:app="http://schemas.android.com/apk/res-auto"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:fillViewport="true">
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/card_padding">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/registro_titulo"
+            android:textColor="@color/azul_oscuro"
+            android:textSize="@dimen/text_section"
+            android:textStyle="bold" />
+
+        <!-- CANCHA -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/inputLayoutCancha"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/gap_large"
+            android:hint="@string/hint_cancha"
+            app:endIconMode="dropdown_menu">
+
+            <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                android:id="@+id/autoCompleteCancha"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/hint_cancha"
+                android:inputType="none" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:id="@+id/textViewPrecio"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/gap_small"
+            android:textColor="@color/gris_texto"
+            android:textSize="@dimen/text_caption"
+            android:visibility="gone" />
+
+        <!-- CLIENTE: documento + buscar -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="@dimen/card_padding">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/registro_titulo"
-                android:textColor="@color/azul_oscuro"
-                android:textSize="@dimen/text_section"
-                android:textStyle="bold" />
+            android:layout_marginTop="@dimen/gap_large"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
             <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/inputLayoutCancha"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/gap_large"
-                android:hint="@string/hint_cancha"
-                app:endIconMode="dropdown_menu">
-
-                <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                    android:id="@+id/autoCompleteCancha"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="none"
-                    android:contentDescription="@string/hint_cancha" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/inputLayoutCliente"
+                android:id="@+id/inputLayoutDocumento"
                 style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/gap_medium"
-                android:hint="@string/hint_cliente">
+                android:layout_marginEnd="@dimen/gap_small"
+                android:layout_weight="1"
+                android:hint="@string/hint_documento">
 
                 <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/editTextCliente"
+                    android:id="@+id/editTextDocumento"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="textCapWords" />
+                    android:inputType="number" />
             </com.google.android.material.textfield.TextInputLayout>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/gap_large"
-                android:text="@string/label_tipo_cliente"
-                android:textColor="@color/azul_oscuro"
-                android:textSize="@dimen/text_body"
-                android:textStyle="bold" />
-
-            <RadioGroup
-                android:id="@+id/radioGroupTipoCliente"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal">
-
-                <com.google.android.material.radiobutton.MaterialRadioButton
-                    android:id="@+id/radioParticular"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:checked="true"
-                    android:text="@string/tipo_particular" />
-
-                <com.google.android.material.radiobutton.MaterialRadioButton
-                    android:id="@+id/radioInstitucional"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/tipo_institucional" />
-            </RadioGroup>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/gap_large"
-                android:orientation="horizontal">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/buttonHoraInicio"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="0dp"
-                    android:layout_height="@dimen/button_height"
-                    android:layout_marginEnd="@dimen/gap_small"
-                    android:layout_weight="1"
-                    android:text="@string/boton_hora_inicio"
-                    android:textAllCaps="false" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/buttonHoraFin"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="0dp"
-                    android:layout_height="@dimen/button_height"
-                    android:layout_marginStart="@dimen/gap_small"
-                    android:layout_weight="1"
-                    android:text="@string/boton_hora_fin"
-                    android:textAllCaps="false" />
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/textViewHorarioSeleccionado"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/gap_small"
-                android:text="@string/horario_sin_seleccionar"
-                android:textColor="@color/gris_texto"
-                android:textSize="@dimen/text_caption" />
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/inputLayoutAdelanto"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/gap_large"
-                android:hint="@string/hint_adelanto">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/editTextAdelanto"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="numberDecimal" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <TextView
-                android:id="@+id/textViewErrorFormulario"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/gap_small"
-                android:textColor="@color/error"
-                android:textSize="@dimen/text_caption"
-                android:visibility="gone" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/buttonGuardarReserva"
-                android:layout_width="match_parent"
+                android:id="@+id/buttonBuscarCliente"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
                 android:layout_height="@dimen/button_height"
-                android:layout_marginTop="@dimen/gap_large"
-                android:text="@string/boton_guardar_reserva"
-                android:textAllCaps="false"
-                android:textStyle="bold" />
-
+                android:text="@string/boton_buscar_cliente"
+                android:textAllCaps="false" />
         </LinearLayout>
-    </ScrollView>
+
+        <TextView
+            android:id="@+id/textViewEstadoCliente"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/gap_small"
+            android:textColor="@color/verde_principal"
+            android:textSize="@dimen/text_caption"
+            android:visibility="gone" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/inputLayoutCliente"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/gap_medium"
+            android:hint="@string/hint_cliente">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/editTextCliente"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textCapWords" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/inputLayoutTelefono"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/gap_medium"
+            android:hint="@string/hint_telefono_cliente">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/editTextTelefono"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="phone" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/gap_large"
+            android:text="@string/label_tipo_cliente"
+            android:textColor="@color/azul_oscuro"
+            android:textSize="@dimen/text_body"
+            android:textStyle="bold" />
+
+        <RadioGroup
+            android:id="@+id/radioGroupTipoCliente"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <com.google.android.material.radiobutton.MaterialRadioButton
+                android:id="@+id/radioParticular"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="@string/tipo_particular" />
+
+            <com.google.android.material.radiobutton.MaterialRadioButton
+                android:id="@+id/radioInstitucional"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/tipo_institucional" />
+        </RadioGroup>
+
+        <!-- FECHA Y HORA (la reserva siempre dura 1 hora) -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/buttonFechaHora"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/button_height"
+            android:layout_marginTop="@dimen/gap_large"
+            android:text="@string/boton_fecha_hora"
+            android:textAllCaps="false" />
+
+        <TextView
+            android:id="@+id/textViewHorarioSeleccionado"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/gap_small"
+            android:text="@string/horario_reserva_sin_seleccionar"
+            android:textColor="@color/gris_texto"
+            android:textSize="@dimen/text_caption" />
+
+        <TextView
+            android:id="@+id/textViewErrorFormulario"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/gap_small"
+            android:textColor="@color/error"
+            android:textSize="@dimen/text_caption"
+            android:visibility="gone" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/buttonGuardarReserva"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/button_height"
+            android:layout_marginTop="@dimen/gap_large"
+            android:text="@string/boton_guardar_reserva"
+            android:textAllCaps="false"
+            android:textStyle="bold" />
+
+    </LinearLayout>
+</ScrollView>

@@ -16,7 +16,6 @@ class RespaldoJobService: JobService() {
                 val reservas = ReservaStore(applicationContext).obtenerTodas()
                 val archivo = File(filesDir, NOMBRE_RESPALDO)
 
-                // buildString crea todo antes de escribirlo en el archivo private
                 val contenido =buildString {
                     appendLine(CABECERA_CSV)
                     reservas.forEach { reserva ->
@@ -29,8 +28,8 @@ class RespaldoJobService: JobService() {
                                 reserva.horaFin.toString(),
                                 reserva.estado,
                                 reserva.tipoCliente,
-                                reserva.adelanto.toString(),
-                                reserva.saldo.toString()
+                                reserva.montoRecibido.toString(),
+                                reserva.vuelto.toString()
                             ).joinToString(SEPARADOR_CSV) { valor -> escaparCsv(valor)}
                         )
                     }
@@ -67,7 +66,7 @@ class RespaldoJobService: JobService() {
     }
     companion object{
         private const val NOMBRE_RESPALDO = "respaldo_reserva.csv"
-        private const val CABECERA_CSV = "id,canchaNombre,clienteNombre,horaInicio,horaFin,estado,tipoCliente,adelanto,saldo"
+        private const val CABECERA_CSV = "id,canchaNombre,clienteNombre,horaInicio,horaFin,estado,tipoCliente,precioReserva,montoRecibido,vuelto"
         private const val SEPARADOR_CSV = ","
     }
 }

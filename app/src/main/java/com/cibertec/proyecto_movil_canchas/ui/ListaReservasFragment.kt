@@ -3,6 +3,9 @@ package com.cibertec.proyecto_movil_canchas.ui
 import android.app.job.JobScheduler
 import android.icu.text.DateFormat
 import android.os.Bundle
+import android.text.Editable
+import android.text.InputType
+import android.text.TextWatcher
 import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
@@ -18,7 +21,9 @@ import com.cibertec.proyecto_movil_canchas.data.ReservaStore
 import com.cibertec.proyecto_movil_canchas.databinding.DialogDetalleReservaBinding
 import com.cibertec.proyecto_movil_canchas.databinding.FragmentListaReservasBinding
 import com.cibertec.proyecto_movil_canchas.model.Reserva
+import com.cibertec.proyecto_movil_canchas.model.ResultadoPago
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.textfield.TextInputEditText
 import java.util.Date
 
 class ListaReservasFragment : Fragment() {
@@ -82,13 +87,110 @@ class ListaReservasFragment : Fragment() {
 
         MaterialAlertDialogBuilder(requireContext())
             .setView(dialogBinding.root)
-            .setPositiveButton(R.string.boton_registrar_pago) { _, _ ->
-                // abrir el flujo real de registro de pago (adelanto/saldo)
-                Toast.makeText(requireContext(), R.string.pago_registrado_pendiente, Toast.LENGTH_SHORT).show()
-            }
+            .setPositiveButton(R.string.boton_registrar_pago) { _, _ -> mostrarPago(reserva) }
+            .setNegativeButton(R.string.dialogo_volver, null)
             .show()
     }
+    private fun mostrarPago(reserva: Reserva) {
+        val input = TextInputEditText(requireContext()).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            hint = getString(R.string.hint_monto_pago)
+        }
 
+        // 1. Mensaje inicial (Precio, Recibido: 0.0, Vuelto: 0.0)
+        val mensajeInicial = getString(
+            R.string.dialogo_pago_mensaje,
+            reserva.precioReserva, // %1$.2f
+            0.0,                  // %2$.2f
+            0.0                   // %3$.2f
+        )
+
+        val dialog = MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.dialogo_pago_titulo)
+            .setMessage(mensajeInicial)
+            .setView(input)
+            .setPositiveButton(R.string.dialogo_pago_confirmar) { _, _ ->
+                val monto = input.text.toString().toDoubleOrNull()
+                if (monto == null || monto <= 0.0) {
+                    Toast.makeText(
+                        requireContext(),
+                        R.string.error_pago_invalido,
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else if (monto < reserva.precioReserva) {
+                    Toast.makeText(
+                        requireContext(),
+                        R.string.error_pago_insuficiente,
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else {
+                    registrarPago(reserva, monto)
+                }
+            }
+            .setNegativeButton(R.string.dialogo_volver, null)
+            .create()
+
+        // 2. Escuchamos en tiempo real y enviamos los 3 valores requeridos por el String
+        input.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+
+            override fun afterTextChanged(s: Editable?) {
+                val montoIngresado = s.toString().toDoubleOrNull() ?: 0.0
+                val vuelto = if (montoIngresado >= reserva.precioReserva) {
+                    montoIngresado - reserva.precioReserva
+                } else {
+                    0.0
+                }
+
+                // Pasamos exactamente los 3 valores requeridos por el string.xml
+                dialog.setMessage(
+                    getString(
+                        R.string.dialogo_pago_mensaje,
+                        reserva.precioReserva, // %1$.2f
+                        montoIngresado,       // %2$.2f
+                        vuelto                // %3$.2f
+                    )
+                )
+            }
+        })
+
+        dialog.show()
+    }
+    private fun registrarPago(reserva: Reserva, monto: Double) {
+        Thread {
+            val resultado = reservaStore.registrarPago(reserva.id, monto)
+
+            activity?.runOnUiThread {
+                // Validamos que el fragmento siga activo y adjunto
+                if (_binding == null || !isAdded) return@runOnUiThread
+                val ctx = context ?: return@runOnUiThread
+
+                if (resultado == ResultadoPago.EXITO) {
+                    val vuelto = monto - reserva.precioReserva
+
+                    // Un solo Toast informativo de éxito con el vuelto
+                    Toast.makeText(
+                        ctx,
+                        "Pago registrado. Vuelto: S/ %.2f".format(vuelto),
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    cargarReservas()
+                } else {
+                    // Manejamos los mensajes de error de forma limpia
+                    val mensajeError = when (resultado) {
+                        ResultadoPago.MONTO_INVALIDO -> R.string.error_pago_invalido
+                        ResultadoPago.YA_PAGADA -> R.string.error_pago_ya_pagada
+                        ResultadoPago.NO_PERMITIDO -> R.string.error_pago_no_permitido
+                        else -> R.string.error_registrar_pago
+                    }
+
+                    Toast.makeText(ctx, mensajeError, Toast.LENGTH_LONG).show()
+                }
+            }
+        }.start()
+    }
     private fun configurarGestos(){
         val callback = object : ItemTouchHelper.SimpleCallback(
 0,
@@ -108,7 +210,7 @@ class ListaReservasFragment : Fragment() {
                 if (direction == ItemTouchHelper.END){
                     mostrarEdicion(reserva, posicion)
                 }else{
-                    confirmarElimicacion(reserva, posicion)
+                    confirmarCancelacion(reserva, posicion)
                 }
             }
         }
@@ -144,49 +246,34 @@ class ListaReservasFragment : Fragment() {
                     cargarReservas()
                 } else{
                     reservaAdapter.restaurarTarjeta(posicion)
-                    Toast.makeText(requireContext(), R.string.error_actualizar_reserva, Toast.LENGTH_LONG).show()
+                    Toast.makeText(requireContext(), R.string.error_actualizar_reserva, Toast.LENGTH_LONG)
+                        .show()
                 }
             }
         }.start()
     }
-    private fun confirmarElimicacion(reserva: Reserva, posicion: Int){
+    private fun confirmarCancelacion(reserva: Reserva, posicion: Int) {
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle(R.string.dialogo_eliminar_titulo)
-            .setMessage(
-                getString(
-                    R.string.dialogo_eliminar_mensaje,
-                    reserva.id,
-                    reserva.canchaNombre
-                )
-            )
-            .setPositiveButton(R.string.dialogo_eliminar_confirmar){ _, _ ->
-                eliminarReserva(reserva, posicion)
-            }
-            .setNegativeButton(R.string.dialogo_cancelar){ _, _ ->
-                reservaAdapter.restaurarTarjeta(posicion)
-            }
-            .setOnCancelListener {
-                reservaAdapter.restaurarTarjeta(posicion)
-            }
+            .setTitle(R.string.dialogo_cancelar_reserva_titulo)
+            .setMessage(getString(R.string.dialogo_cancelar_reserva_mensaje, reserva.canchaNombre, reserva.clienteNombre))
+            .setPositiveButton(R.string.dialogo_cancelar_reserva_confirmar) { _, _ -> cancelarReserva(reserva, posicion) }
+            .setNegativeButton(R.string.dialogo_volver) { _, _ -> reservaAdapter.restaurarTarjeta(posicion) }
+            .setOnCancelListener { reservaAdapter.restaurarTarjeta(posicion) }
             .show()
     }
-    private fun eliminarReserva(reserva: Reserva, posicion: Int){
-        //hacer eliminacion logica
-        Thread{
-            val filasEliminadas = reservaStore.eliminar(reserva.id)
-           activity?.runOnUiThread {
-               if (_binding == null) return@runOnUiThread
-                if (filasEliminadas == 1){
+
+    private fun cancelarReserva(reserva: Reserva, posicion: Int) {
+        Thread {
+            val filas = reservaStore.cancelar(reserva.id)
+            activity?.runOnUiThread {
+                if (_binding == null) return@runOnUiThread
+                if (filas == 1) {
                     cargarReservas()
-                } else{
+                } else {
                     reservaAdapter.restaurarTarjeta(posicion)
-                    Toast.makeText(
-                        requireContext(),
-                        R.string.error_eliminar_reserva,
-                        Toast.LENGTH_LONG
-                    ).show()
+                    Toast.makeText(requireContext(), R.string.error_cancelar_reserva, Toast.LENGTH_LONG).show()
                 }
-           }
+            }
         }.start()
     }
 
