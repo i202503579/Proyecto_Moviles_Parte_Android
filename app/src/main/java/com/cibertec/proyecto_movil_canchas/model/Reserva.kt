@@ -14,6 +14,6 @@ data class Reserva(
     val montoRecibido: Double,
     val estado: String
 ){
-    val vuelto: Double get() = montoRecibido - precioReserva
+    val saldo: Double get() = precioReserva - montoRecibido
 }
 

@@ -44,6 +44,7 @@
     <string name="error_actualizar_reserva">Error al actualizar reserva</string>
     <string name="dialogo_cancelar">Cancelar</string>
     <string name="estado_confirmado">Confirmada</string>
+    <string name="estado_completada">Completada</string>
     <string name="estado_pendiente">Pendiente</string>
     <string name="estado_cancelada">Cancelada</string>
     <string name="error_eliminar_reserva">No fue posible eliminar la reserva.</string>
@@ -77,7 +78,7 @@
     <string name="error_cancelar_reserva">No se pudo cancelar la reserva (solo se cancelan las Pendientes o Confirmadas).</string>
 
     <string name="dialogo_pago_titulo">Registrar pago</string>
-    <string name="dialogo_pago_mensaje">Precio: S/ %1$.2f\nRecibido: S/ %2$.2f\nVuelto: S/ %3$.2f</string>
+    <string name="dialogo_pago_mensaje">Precio: S/ %1$.2f\nRecibido: S/ %2$.2f\nSaldo: S/ %3$.2f</string>
     <string name="hint_monto_pago">Monto recibido (S/)</string>
     <string name="formato_vuelto">Vuelto: S/ %.2f</string>
     <string name="error_pago_ya_pagada">Esta reserva ya está pagada por completo.</string>

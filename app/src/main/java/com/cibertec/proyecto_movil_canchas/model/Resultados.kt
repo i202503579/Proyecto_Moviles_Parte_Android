@@ -9,7 +9,7 @@ package com.cibertec.proyecto_movil_canchas.model
 enum class ResultadoPago {
     EXITO,
     MONTO_INVALIDO,   // monto <= 0
-    YA_PAGADA,
+    EXCEDE_SALDO,
     NO_PERMITIDO,     // reserva cancelada
     ERROR
 }

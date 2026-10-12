@@ -8,7 +8,8 @@ import com.cibertec.proyecto_movil_canchas.model.Cliente
 import com.cibertec.proyecto_movil_canchas.model.Reserva
 import com.cibertec.proyecto_movil_canchas.model.ResultadoPago
 import com.cibertec.proyecto_movil_canchas.model.ResultadoReserva
-import com.cibertec.proyecto_movil_canchas.model.calcularCobro
+import com.cibertec.proyecto_movil_canchas.model.estadoSegunPago
+import com.cibertec.proyecto_movil_canchas.model.redondear
 
 class ReservaStore(context: Context) {
     private val dbHelper = CanchitasDbHelper.getInstance(context)
@@ -120,20 +121,23 @@ class ReservaStore(context: Context) {
             }
             if (!encontrada) return ResultadoPago.ERROR
 
-            if (estado == "Cancelada") return ResultadoPago.NO_PERMITIDO
+            if (estado == "Cancelada" || estado == "Completada") return ResultadoPago.NO_PERMITIDO
 
-            val saldo = precio - recibido
-            if (saldo <= TOLERANCIA_DECIMALES) return ResultadoPago.YA_PAGADA
+            val nuevoMonto = recibido + monto
+            if (nuevoMonto > precio + TOLERANCIA_DECIMALES) return ResultadoPago.EXCEDE_SALDO
 
-            val cobro = calcularCobro(saldo, monto)
+            val nuevoRecibidoRedondeado = redondear(nuevoMonto)
+
             val valores = ContentValues().apply {
-                put(ReservaContrato.COLUMNA_MONTO_RECIBIDO, recibido + cobro.aplicado)
-                if (estado == "Pendiente") put(ReservaContrato.COLUMNA_ESTADO, "Confirmada")
+                put(ReservaContrato.COLUMNA_MONTO_RECIBIDO, nuevoRecibidoRedondeado)
+                put(ReservaContrato.COLUMNA_ESTADO, estadoSegunPago(nuevoRecibidoRedondeado, precio))
                 put(ReservaContrato.COLUMNA_SYNCED, 0)
             }
             val filas = db.update(
-                ReservaContrato.TABLA_RESERVAS, valores,
-                "${ReservaContrato.COLUMNA_ID} = ?", arrayOf(idReserva.toString())
+                ReservaContrato.TABLA_RESERVAS,
+                valores,
+                "${ReservaContrato.COLUMNA_ID} = ?",
+                arrayOf(idReserva.toString())
             )
             if (filas != 1) return ResultadoPago.ERROR
 
@@ -146,7 +150,7 @@ class ReservaStore(context: Context) {
         }
     }
 
-    // Una reserva no se borra (el historial importa): se cancela. Devuelve filas afectadas.
+    // aun viendo que hacer con los cancelados, si dejarlos en eliminacion fisica o logica
     fun cancelar(idReserva: Int): Int {
         val valores = ContentValues().apply {
             put(ReservaContrato.COLUMNA_ESTADO, "Cancelada")
@@ -155,7 +159,7 @@ class ReservaStore(context: Context) {
         return dbHelper.writableDatabase.update(
             ReservaContrato.TABLA_RESERVAS,
             valores,
-            "${ReservaContrato.COLUMNA_ID} = ? AND ${ReservaContrato.COLUMNA_ESTADO} IN ('Pendiente', 'Confirmada')",
+            "${ReservaContrato.COLUMNA_ID} = ? AND ${ReservaContrato.COLUMNA_ESTADO} != 'Cancelada'",
             arrayOf(idReserva.toString())
         )
     }

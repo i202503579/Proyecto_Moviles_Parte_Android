@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="estados_reserva">
+        <item>Pendiente</item>
+        <item>Confirmada</item>
+        <item>Completada</item>
+        <item>Cancelada</item>
+    </string-array>
+</resources>

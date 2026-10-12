@@ -29,7 +29,7 @@ class RespaldoJobService: JobService() {
                                 reserva.estado,
                                 reserva.tipoCliente,
                                 reserva.montoRecibido.toString(),
-                                reserva.vuelto.toString()
+                                reserva.saldo.toString()
                             ).joinToString(SEPARADOR_CSV) { valor -> escaparCsv(valor)}
                         )
                     }
@@ -66,7 +66,7 @@ class RespaldoJobService: JobService() {
     }
     companion object{
         private const val NOMBRE_RESPALDO = "respaldo_reserva.csv"
-        private const val CABECERA_CSV = "id,canchaNombre,clienteNombre,horaInicio,horaFin,estado,tipoCliente,precioReserva,montoRecibido,vuelto"
+        private const val CABECERA_CSV = "id,canchaNombre,clienteNombre,horaInicio,horaFin,estado,tipoCliente,precioReserva,montoRecibido,saldo"
         private const val SEPARADOR_CSV = ","
     }
 }
