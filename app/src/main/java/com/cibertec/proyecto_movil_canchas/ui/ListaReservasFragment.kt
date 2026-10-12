@@ -1,6 +1,7 @@
 package com.cibertec.proyecto_movil_canchas.ui
 
 import android.app.job.JobScheduler
+import android.content.Context
 import android.icu.text.DateFormat
 import android.os.Bundle
 import android.text.InputType
@@ -68,6 +69,14 @@ class ListaReservasFragment : Fragment() {
         dialogBinding.textViewEstadoDialog.text = reserva.estado
         dialogBinding.textViewHorarioDialog.text = getString(R.string.dialogo_formato_horario,
             formatoHora.format(reserva.horaInicio), formatoHora.format(reserva.horaFin) )
+
+        val notaLocal = obtenerNotaLocal(reserva.id)
+        if (notaLocal.isNotEmpty()) {
+            dialogBinding.textViewNotaDialog.visibility = View.VISIBLE
+            dialogBinding.textViewNotaDialog.text = "Nota: $notaLocal"
+        } else {
+            dialogBinding.textViewNotaDialog.visibility = View.GONE
+        }
 
         val fondoSemaforo = when(reserva.estado){
             getString(R.string.estado_completada) -> R.drawable.bg_semaforo_verde
@@ -154,17 +163,38 @@ class ListaReservasFragment : Fragment() {
         ItemTouchHelper(callback).attachToRecyclerView(binding.recyclerViewReservas)
     }
     private fun mostrarEdicion(reserva: Reserva, posicion: Int){
-        val estados = resources.getStringArray(R.array.estados_reserva)
-        val indiceActual = estados.indexOf(reserva.estado).let { if (it == -1) 0 else it }
-        var estadoSeleccionado = reserva.estado
+        val context = requireContext()
+        val layout = android.widget.LinearLayout(context).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(48, 32, 48, 0)
+        }
+        val inputNombre = TextInputEditText(context).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
+            hint = getString(R.string.hint_cliente)
+            setText(reserva.clienteNombre)
+        }
+        val inputNota = TextInputEditText(context).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_LONG_MESSAGE
+            hint = getString(R.string.hint_nota)
+            setText(obtenerNotaLocal(reserva.id))
+        }
+        layout.addView(inputNombre)
+        layout.addView(inputNota)
 
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle(getString(R.string.dialogo_cambiar_estado_titulo, reserva.canchaNombre))
-            .setSingleChoiceItems(estados, indiceActual){ _, which ->
-                estadoSeleccionado = estados[which]
-            }
+            .setTitle(getString(R.string.dialogo_cambiar_nombre_cliente, reserva.clienteNombre))
+            .setMessage(R.string.dialogo_mensaje_modificar)
+            .setView(layout)
             .setPositiveButton(R.string.dialogo_guardar){ _, _ ->
-                guardarEdicion(reserva, estadoSeleccionado, posicion)
+                val nuevoNombre = inputNombre.text.toString().trim()
+                val nuevaNota = inputNota.text.toString().trim()
+                if (nuevoNombre.isEmpty()){
+                    Toast.makeText(context, R.string.error_cliente, Toast.LENGTH_SHORT).show()
+                    reservaAdapter.restaurarTarjeta(posicion)
+                    return@setPositiveButton
+                }
+                guardarNotaLocal(reserva.id, nuevaNota)
+                guardarEdicion(reserva, nuevoNombre, posicion)
             }
             .setNegativeButton(R.string.dialogo_cancelar){ _, _ ->
                 reservaAdapter.restaurarTarjeta(posicion)
@@ -172,13 +202,13 @@ class ListaReservasFragment : Fragment() {
             .setOnCancelListener { reservaAdapter.restaurarTarjeta(posicion) }
             .show()
     }
-    private fun guardarEdicion(reserva: Reserva, nuevoEstado: String, posicion: Int){
-        //funcion dentro del mostrarEdicion
+    private fun guardarEdicion(reserva: Reserva, nuevoNombre: String, posicion: Int){
         Thread{
-            val filasActualizadas = reservaStore.actualizarEstado(reserva.id, nuevoEstado)
+            val filasActualizadas = reservaStore.actualizarCliente(reserva.id, nuevoNombre)
             activity?.runOnUiThread{
                 if (_binding == null) return@runOnUiThread
-                if (filasActualizadas == 1){
+                if (filasActualizadas > 0){
+                    Toast.makeText(requireContext(), R.string.cliente_actualizado, Toast.LENGTH_SHORT).show()
                     cargarReservas()
                 } else{
                     reservaAdapter.restaurarTarjeta(posicion)
@@ -187,6 +217,15 @@ class ListaReservasFragment : Fragment() {
                 }
             }
         }.start()
+    }
+    private fun guardarNotaLocal(idReserva: Int, nota: String) {
+        val prefs = requireContext().getSharedPreferences("notas_locales_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putString("nota_reserva_$idReserva", nota).apply()
+    }
+
+    private fun obtenerNotaLocal(idReserva: Int): String {
+        val prefs = requireContext().getSharedPreferences("notas_locales_prefs", Context.MODE_PRIVATE)
+        return prefs.getString("nota_reserva_$idReserva", "") ?: ""
     }
     private fun confirmarCancelacion(reserva: Reserva, posicion: Int) {
         MaterialAlertDialogBuilder(requireContext())

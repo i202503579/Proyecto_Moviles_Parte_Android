@@ -29,7 +29,15 @@
         android:layout_marginTop="@dimen/gap_small"
         android:textColor="@color/gris_texto"
         android:textSize="@dimen/text_body" />
-
+    <TextView
+        android:id="@+id/textViewNotaDialog"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:textColor="@color/gris_texto"
+        android:textSize="14sp"
+        android:textStyle="italic"
+         />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/buttonPrestamoBalonDialog"

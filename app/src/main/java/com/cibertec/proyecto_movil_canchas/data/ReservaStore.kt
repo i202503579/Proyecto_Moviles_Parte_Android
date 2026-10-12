@@ -164,18 +164,6 @@ class ReservaStore(context: Context) {
         )
     }
 
-    fun actualizarEstado(idReserva: Int, nuevoEstado: String): Int {
-        val valores = ContentValues().apply {
-            put(ReservaContrato.COLUMNA_ESTADO, nuevoEstado)
-            put(ReservaContrato.COLUMNA_SYNCED, 0)
-        }
-        return dbHelper.writableDatabase.update(
-            ReservaContrato.TABLA_RESERVAS,
-            valores,
-            "${ReservaContrato.COLUMNA_ID} = ?",
-            arrayOf(idReserva.toString())
-        )
-    }
 
     // Dos reservas de la misma cancha se cruzan si inicio1 < fin2 Y inicio2 < fin1.
     private fun hayChoqueDeHorario(
@@ -194,8 +182,45 @@ class ReservaStore(context: Context) {
             return cursor.count > 0
         }
     }
+    fun actualizarCliente(idReserva: Int, nuevoNombreCliente: String): Int {
+        val db = dbHelper.writableDatabase
 
-    // Devuelve el id local del cliente (existente o recién creado), o null si falló.
+        var clienteId = -1
+        db.query(
+            ReservaContrato.TABLA_RESERVAS,
+            arrayOf(ReservaContrato.COLUMNA_ID_CLIENTE),
+            "${ReservaContrato.COLUMNA_ID} = ?",
+            arrayOf(idReserva.toString()),
+            null, null, null
+        ).use { cursor ->
+            if (cursor.moveToFirst()) {
+                clienteId = cursor.getInt(0)
+            }
+        }
+
+        if (clienteId == -1) return 0
+
+        val valoresCliente = ContentValues().apply {
+            put(ClienteContrato.COLUMNA_NOMBRE, nuevoNombreCliente)
+        }
+        db.update(
+            ClienteContrato.TABLA,
+            valoresCliente,
+            "${ClienteContrato.COLUMNA_ID} = ?",
+            arrayOf(clienteId.toString())
+        )
+
+        val valoresReserva = ContentValues().apply {
+            put(ReservaContrato.COLUMNA_SYNCED, 0)
+        }
+        return db.update(
+            ReservaContrato.TABLA_RESERVAS,
+            valoresReserva,
+            "${ReservaContrato.COLUMNA_ID} = ?",
+            arrayOf(idReserva.toString())
+        )
+    }
+
     private fun resolverCliente(db: SQLiteDatabase, cliente: Cliente): Int? {
         if (cliente.id != 0) return cliente.id
         ClienteStore.buscarPorDocumento(db, cliente.numeroDocumento)?.let { return it.id }
