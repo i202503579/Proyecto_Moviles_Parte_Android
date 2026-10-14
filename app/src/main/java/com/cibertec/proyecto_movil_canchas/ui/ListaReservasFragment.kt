@@ -19,6 +19,9 @@ import com.cibertec.proyecto_movil_canchas.background.RespaldoScheduler
 import com.cibertec.proyecto_movil_canchas.data.ReservaStore
 import com.cibertec.proyecto_movil_canchas.databinding.DialogDetalleReservaBinding
 import com.cibertec.proyecto_movil_canchas.databinding.FragmentListaReservasBinding
+import com.cibertec.proyecto_movil_canchas.model.FiltroEstado
+import com.cibertec.proyecto_movil_canchas.model.FiltroReservas
+import com.cibertec.proyecto_movil_canchas.model.RangoFecha
 import com.cibertec.proyecto_movil_canchas.model.Reserva
 import com.cibertec.proyecto_movil_canchas.model.ResultadoPago
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -28,7 +31,7 @@ import java.util.Date
 class ListaReservasFragment : Fragment() {
     private var _binding: FragmentListaReservasBinding? = null
     private val binding get() = _binding!!
-
+    private var filtro = FiltroReservas()
     private lateinit var reservaAdapter: ReservaAdapter
     private lateinit var reservaStore: ReservaStore
 
@@ -49,6 +52,7 @@ class ListaReservasFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         configurarRecyclerView()
+        configurarFiltros()
         binding.buttonRespaldo.setOnClickListener {
             programarRespaldo()
         }
@@ -60,7 +64,28 @@ class ListaReservasFragment : Fragment() {
         binding.recyclerViewReservas.adapter = reservaAdapter
         configurarGestos()
     }
-
+    private fun configurarFiltros(){
+        binding.chipGroupRango.setOnCheckedStateChangeListener { _, ids ->
+            val rango = when (ids.firstOrNull()){
+                R.id.chipHoy -> RangoFecha.HOY
+                R.id.chipTodas -> RangoFecha.TODAS
+                else -> RangoFecha.PROXIMAS
+            }
+            filtro = filtro.copy(rango = rango)
+            cargarReservas()
+        }
+        binding.chipGroupEstado.setOnCheckedStateChangeListener { _, ids ->
+            val estado = when (ids.firstOrNull()){
+                R.id.chipPendientes -> FiltroEstado.PENDIENTES
+                R.id.chipConfirmadas -> FiltroEstado.CONFIRMADAS
+                R.id.chipCompletadas -> FiltroEstado.COMPLETADAS
+                R.id.chipCanceladas -> FiltroEstado.CANCELADAS
+                else -> FiltroEstado.ACTIVAS
+            }
+            filtro = filtro.copy(estado = estado)
+            cargarReservas()
+        }
+    }
     private fun mostrarDetalle(reserva: Reserva){
         val formatoHora = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
         val dialogBinding = DialogDetalleReservaBinding.inflate(layoutInflater)
@@ -96,6 +121,7 @@ class ListaReservasFragment : Fragment() {
         MaterialAlertDialogBuilder(requireContext())
             .setView(dialogBinding.root)
             .setPositiveButton(R.string.boton_registrar_pago) { _, _ -> mostrarPago(reserva) }
+            .setNeutralButton(R.string.boton_anular_pago){ _, _ -> mostrarAnulacionPago(reserva)}
             .setNegativeButton(R.string.dialogo_volver, null)
             .show()
     }
@@ -129,6 +155,7 @@ class ListaReservasFragment : Fragment() {
                     ResultadoPago.EXITO -> R.string.pago_registrado
                     ResultadoPago.MONTO_INVALIDO -> R.string.error_pago_invalido
                     ResultadoPago.EXCEDE_SALDO -> R.string.error_pago_excede
+                    ResultadoPago.EXCEDE_PAGADO -> R.string.error_reverso_excede
                     ResultadoPago.NO_PERMITIDO -> R.string.error_pago_no_permitido
                     ResultadoPago.ERROR -> R.string.error_registrar_pago
                 }
@@ -236,6 +263,71 @@ class ListaReservasFragment : Fragment() {
             .setOnCancelListener { reservaAdapter.restaurarTarjeta(posicion) }
             .show()
     }
+    private fun mostrarAnulacionPago(reserva: Reserva) {
+        if (reserva.montoRecibido <= 0.0) {
+            Toast.makeText(requireContext(), "Esta reserva no tiene pagos registrados para anular", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val input = TextInputEditText(requireContext()).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            hint = "Monto a descontar/reversar"
+        }
+
+        // Primer diálogo: Ingresar el monto
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Anular / Reversar Pago")
+            .setMessage("Monto recibido actual: S/ ${reserva.montoRecibido}\n\nIngresa la cantidad a descontar:")
+            .setView(input)
+            .setPositiveButton("Continuar") { _, _ ->
+                val monto = input.text.toString().toDoubleOrNull()
+                if (monto == null || monto <= 0.0) {
+                    Toast.makeText(requireContext(), R.string.error_pago_invalido, Toast.LENGTH_SHORT).show()
+                } else if (monto > reserva.montoRecibido) {
+                    Toast.makeText(requireContext(), "El monto a descontar supera lo pagado", Toast.LENGTH_SHORT).show()
+                } else {
+                    // Segundo paso: Diálogo de confirmación de seguridad (Trazabilidad visual)
+                    confirmarEjecucionReversion(reserva, monto)
+                }
+            }
+            .setNegativeButton(R.string.dialogo_volver, null)
+            .show()
+    }
+
+    private fun confirmarEjecucionReversion(reserva: Reserva, monto: Double) {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("¿Estás seguro?")
+            .setMessage("Vas a retirar S/ $monto del registro de esta reserva.\n\nEsta acción modificará el saldo de caja. ¿Deseas proceder?")
+            .setPositiveButton("Sí, anular pago") { _, _ ->
+                ejecutarReversion(reserva, monto)
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun ejecutarReversion(reserva: Reserva, monto: Double) {
+        Thread {
+            val resultado = reservaStore.reversarPago(reserva.id, monto)
+            activity?.runOnUiThread {
+                if (_binding == null) return@runOnUiThread
+                when (resultado) {
+                    ResultadoPago.EXITO -> {
+                        Toast.makeText(requireContext(), "Pago reversado correctamente", Toast.LENGTH_SHORT).show()
+                        cargarReservas()
+                    }
+                    ResultadoPago.EXCEDE_SALDO, ResultadoPago.EXCEDE_PAGADO -> {
+                        Toast.makeText(requireContext(), "El monto a descontar supera lo pagado", Toast.LENGTH_LONG).show()
+                    }
+                    ResultadoPago.NO_PERMITIDO -> {
+                        Toast.makeText(requireContext(), "Acción no permitida para este estado", Toast.LENGTH_SHORT).show()
+                    }
+                    else -> {
+                        Toast.makeText(requireContext(), "Error al reversar el pago", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }.start()
+    }
 
     private fun cancelarReserva(reserva: Reserva, posicion: Int) {
         Thread {
@@ -276,7 +368,7 @@ class ListaReservasFragment : Fragment() {
         binding.textViewListaVacia.visibility = View.GONE
         //thread
         Thread{
-           val reservas = reservaStore.obtenerTodas()
+           val reservas = reservaStore.obtenerTodas(filtro)
 
             activity?.runOnUiThread {
                 val bindingActual = _binding ?: return@runOnUiThread

@@ -52,7 +52,8 @@
     <string name="error_tipo_cliente">Selecciona un tipo de cliente</string>
     <string name="cliente_actualizado">Cliente actualizado</string>
     <string name="hint_nota">Nota interna (ej. Llegará tarde, Yape pendiente)</string>
-
+    <string name="error_reverso_excede">No se puede anular más de lo que se ha pagado.</string>
+    <string name="boton_anular_pago">Anular pago</string>
     <string name="boton_programar_respaldo">Sincronizar reservas</string>
     <string name="respaldo_sin_ejecutar">Todavía no se ha sincronizado.</string>
     <string name="respaldo_programado">Sincronización programada. Se ejecutará en segundo plano.</string>
@@ -93,4 +94,14 @@
     <string name="dialog_vuelto">El monto supera el precio, dar vuelto.</string>
     <string name="error_pago_no_permitido">No se puede registrar un pago en una reserva cancelada o completada.</string>
     <string name="error_registrar_pago">No fue posible registrar el pago.</string>
+
+    <string name="filtro_hoy">Hoy</string>
+    <string name="filtro_proximas">Próximas</string>
+    <string name="filtro_todas">Todas</string>
+    <string name="filtro_activas">Activas</string>
+    <string name="filtro_pendientes">Pendientes</string>
+    <string name="filtro_confirmadas">Confirmadas</string>
+    <string name="filtro_completadas">Completadas</string>
+    <string name="filtro_canceladas">Canceladas</string>
+    <string name="lista_vacia_filtrada">No hay reservas con estos filtros.</string>
 </resources>

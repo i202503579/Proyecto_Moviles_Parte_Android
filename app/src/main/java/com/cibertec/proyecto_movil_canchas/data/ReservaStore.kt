@@ -3,8 +3,12 @@ package com.cibertec.proyecto_movil_canchas.data
 import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
+import com.cibertec.proyecto_movil_canchas.R
 import com.cibertec.proyecto_movil_canchas.model.Cancha
 import com.cibertec.proyecto_movil_canchas.model.Cliente
+import com.cibertec.proyecto_movil_canchas.model.FiltroEstado
+import com.cibertec.proyecto_movil_canchas.model.FiltroReservas
+import com.cibertec.proyecto_movil_canchas.model.RangoFecha
 import com.cibertec.proyecto_movil_canchas.model.Reserva
 import com.cibertec.proyecto_movil_canchas.model.ResultadoPago
 import com.cibertec.proyecto_movil_canchas.model.ResultadoReserva
@@ -45,11 +49,35 @@ class ReservaStore(context: Context) {
         }
     }
 
-    fun obtenerTodas(): List<Reserva> {
+    fun obtenerTodas(filtro: FiltroReservas = FiltroReservas()): List<Reserva> {
         val reservas = mutableListOf<Reserva>()
-        // Orden de columnas (se leen por posición porque "nombre" aparece dos veces):
-        // 0 id, 1 canchaId, 2 canchaNombre, 3 clienteId, 4 clienteNombre, 5 tipoCliente,
-        // 6 horaInicio, 7 horaFin, 8 precio, 9 montoRecibido, 10 estado
+        val condiciones = mutableListOf<String>()
+        val args = mutableListOf<String>()
+
+        val col = "r.${ReservaContrato.COLUMNA_HORA_INICIO}"
+        when(filtro.rango){
+            RangoFecha.HOY -> {
+                condiciones += "$col >= ? AND $col <?"
+                args += inicioDelDia(0).toString()
+                args += inicioDelDia(1).toString()
+            }
+            RangoFecha.PROXIMAS -> {
+                condiciones += "$col >= ?"
+                args += inicioDelDia(0).toString()
+            }
+            RangoFecha.TODAS -> Unit
+        }
+        val estadoCol = "r.${ReservaContrato.COLUMNA_ESTADO}"
+        condiciones += when (filtro.estado){
+            FiltroEstado.ACTIVAS -> "$estadoCol != 'Cancelada'"
+            FiltroEstado.PENDIENTES -> "$estadoCol = 'Pendiente'"
+            FiltroEstado.CONFIRMADAS -> "$estadoCol = 'Confirmada'"
+            FiltroEstado.COMPLETADAS -> "$estadoCol = 'Completada'"
+            FiltroEstado.CANCELADAS -> "$estadoCol = 'Cancelada'"
+        }
+        val clausulaWhere = if (condiciones.isNotEmpty()) "WHERE ${condiciones.joinToString(" AND ")}" else ""
+        val orden = if (filtro.rango == RangoFecha.TODAS) "DESC" else "ASC"
+
         val sql = """
             SELECT r.${ReservaContrato.COLUMNA_ID},
                    r.${ReservaContrato.COLUMNA_ID_CANCHA},
@@ -67,10 +95,11 @@ class ReservaStore(context: Context) {
                 ON c.${CanchaContrato.COLUMNA_ID} = r.${ReservaContrato.COLUMNA_ID_CANCHA}
             JOIN ${ClienteContrato.TABLA} cl
                 ON cl.${ClienteContrato.COLUMNA_ID} = r.${ReservaContrato.COLUMNA_ID_CLIENTE}
-            ORDER BY r.${ReservaContrato.COLUMNA_HORA_INICIO} ASC
+                $clausulaWhere
+            ORDER BY $col $orden
         """.trimIndent()
 
-        dbHelper.readableDatabase.rawQuery(sql, null).use { cursor ->
+        dbHelper.readableDatabase.rawQuery(sql, args.toTypedArray()).use { cursor ->
             while (cursor.moveToNext()) {
                 reservas.add(
                     Reserva(
@@ -91,10 +120,34 @@ class ReservaStore(context: Context) {
         }
         return reservas
     }
-
+    private fun inicioDelDia(diasDesdeHoy: Int): Long =
+        java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+            add(java.util.Calendar.DAY_OF_YEAR, diasDesdeHoy)
+        }.timeInMillis
     fun registrarPago(idReserva: Int, monto: Double): ResultadoPago {
         if (monto <= 0.0) return ResultadoPago.MONTO_INVALIDO
+        return ajustarMontoRecibido(idReserva, monto, ESTADOS_SIN_COBRO)
+    }
 
+    fun reversarPago(idReserva: Int, montoAReversar: Double): ResultadoPago {
+        if (montoAReversar <= 0.0) return ResultadoPago.MONTO_INVALIDO
+        return ajustarMontoRecibido(idReserva, -montoAReversar, ESTADOS_SIN_REVERSA)
+    }
+
+    /**
+     * Suma `delta` al monto recibido: positivo = cobro, negativo = anulación.
+     * El estado se recalcula siempre a partir del dinero resultante, así que el
+     * monto debe quedar entre 0 y el precio.
+     */
+    private fun ajustarMontoRecibido(
+        idReserva: Int,
+        delta: Double,
+        estadosBloqueados: Set<String>
+    ): ResultadoPago {
         val db = dbHelper.writableDatabase
         db.beginTransaction()
         try {
@@ -120,17 +173,24 @@ class ReservaStore(context: Context) {
                 } else false
             }
             if (!encontrada) return ResultadoPago.ERROR
+            if (estado in estadosBloqueados) return ResultadoPago.NO_PERMITIDO
 
-            if (estado == "Cancelada" || estado == "Completada") return ResultadoPago.NO_PERMITIDO
-
-            val nuevoMonto = recibido + monto
+            val nuevoMonto = recibido + delta
             if (nuevoMonto > precio + TOLERANCIA_DECIMALES) return ResultadoPago.EXCEDE_SALDO
+            if (nuevoMonto < -TOLERANCIA_DECIMALES) return ResultadoPago.EXCEDE_PAGADO
 
-            val nuevoRecibidoRedondeado = redondear(nuevoMonto)
-
+            // coerceIn absorbe residuos de decimales (-0.0000001 pasa a 0.0)
+            val montoFinal = redondear(nuevoMonto.coerceIn(0.0, precio))
+            // Determinamos el nuevo estado: si la reserva ya estaba Cancelada, se respeta;
+                // de lo contrario, se calcula normalmente según el dinero recibido.
+            val nuevoEstado = if (estado == "Cancelada") {
+                "Cancelada"
+            } else {
+                estadoSegunPago(montoFinal, precio)
+            }
             val valores = ContentValues().apply {
-                put(ReservaContrato.COLUMNA_MONTO_RECIBIDO, nuevoRecibidoRedondeado)
-                put(ReservaContrato.COLUMNA_ESTADO, estadoSegunPago(nuevoRecibidoRedondeado, precio))
+                put(ReservaContrato.COLUMNA_MONTO_RECIBIDO, montoFinal)
+                put(ReservaContrato.COLUMNA_ESTADO, nuevoEstado)
                 put(ReservaContrato.COLUMNA_SYNCED, 0)
             }
             val filas = db.update(
@@ -232,5 +292,8 @@ class ReservaStore(context: Context) {
         private const val DURACION_RESERVA_MS = 3_600_000L // regla: toda reserva dura 1 hora
         private const val ESTADO_INICIAL = "Pendiente"
         private const val TOLERANCIA_DECIMALES = 0.005
+        private val ESTADOS_SIN_REVERSA = setOf("Completada")
+        private val ESTADOS_SIN_COBRO = setOf("Cancelada", "Confirmada")
+
     }
 }
