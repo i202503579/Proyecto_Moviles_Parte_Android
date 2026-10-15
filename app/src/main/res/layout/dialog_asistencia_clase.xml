@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="@dimen/card_padding">
+
+    <TextView
+        android:id="@+id/textViewDetalleClaseHeader"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/azul_oscuro"
+        android:textSize="@dimen/text_body"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/textViewSubdetalleClaseHeader"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="@color/gris_texto"
+        android:textSize="@dimen/text_caption" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/buttonMarcarTodosPresentes"
+        style="@style/Widget.Material3.Button.TonalButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/gap_small"
+        android:backgroundTint="@color/verde_claro"
+        android:text="@string/boton_marcar_todos_presentes"
+        android:textAllCaps="false" />
+
+    <TextView
+        android:id="@+id/textViewSinAlumnos"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginVertical="@dimen/gap_medium"
+        android:gravity="center"
+        android:text="@string/sin_alumnos_asignados"
+        android:textColor="@color/gris_texto"
+        android:textSize="@dimen/text_body"
+        android:visibility="gone" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerViewAlumnosAsistencia"
+        android:layout_width="match_parent"
+        android:layout_height="300dp"
+        android:layout_marginTop="@dimen/gap_small"
+        tools:listitem="@layout/item_alumno_asistencia" />
+
+    <CheckBox
+        android:id="@+id/checkBoxCompletarClase"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/gap_small"
+        android:text="@string/check_completar_clase"
+        android:textColor="@color/azul_oscuro"
+        android:textSize="@dimen/text_caption"
+        android:textStyle="bold" />
+
+</LinearLayout>

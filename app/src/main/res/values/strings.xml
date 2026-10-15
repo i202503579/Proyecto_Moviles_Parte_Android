@@ -127,4 +127,34 @@
     <string name="error_devolucion_sin_prestamo">Esta reserva no tiene un balón pendiente de devolución.</string>
     <string name="error_devolucion">No fue posible registrar la devolución.</string>
     <string name="error_cancelar_con_balon">Primero registre la devolución del balón.</string>
+
+
+
+    <string name="boton_profesor">Profesor</string>
+    <string name="boton_sincronizar_clases">Sincronizar clases con la Web</string>
+    <string name="sincronizando_clases">Conectando con Azure y sincronizando datos...</string>
+    <string name="sincronizacion_clases_exito">Sincronización exitosa: %1$d clases actualizadas desde la Web.</string>
+    <string name="sincronizacion_clases_error">Sin conexión a la Web. Mostrando datos guardados en el celular.</string>
+    <string name="label_filtrar_profesor">Profesor:</string>
+    <string name="profesor_todos">Todos los profesores</string>
+    <string name="instruccion_tocar_clase">Toque una clase asignada para ver sus alumnos y registrar la asistencia.</string>
+    <string name="filtro_programadas">Programadas</string>
+    <string name="lista_vacia_clases">No hay clases registradas. Presione \"Sincronizar clases con la Web\".</string>
+    <string name="formato_profesor_item">Profesor: %1$s</string>
+    <string name="formato_fecha_horario_clase">%1$s • %2$s - %3$s</string>
+    <string name="formato_resumen_alumnos">Alumnos: %1$d/%2$d con asistencia</string>
+    <string name="chip_pendiente_subir">Pendiente sincronizar</string>
+
+    <string name="dialogo_asistencia_titulo">Control de Asistencia - Clase #%1$d</string>
+    <string name="boton_marcar_todos_presentes">Marcar todos Presentes</string>
+    <string name="check_completar_clase">Marcar la clase como \"Completada\" al guardar</string>
+    <string name="sin_alumnos_asignados">Este profesor aún no tiene alumnos matriculados.</string>
+    <string name="estado_presente">Presente</string>
+    <string name="estado_falta">Falta</string>
+    <string name="estado_justificado">Justificado</string>
+    <string name="formato_apoderado_tel">Apoderado: %1$s</string>
+    <string name="apoderado_no_registrado">Apoderado: No registrado</string>
+    <string name="asistencia_guardada_nube">Asistencia guardada y sincronizada con la Web.</string>
+    <string name="asistencia_guardada_local">Asistencia guardada en el celular (se subirá al sincronizar).</string>
+    <string name="clase_cerrada_aviso">Esta clase está %1$s y su asistencia ya no puede modificarse.</string>
 </resources>
