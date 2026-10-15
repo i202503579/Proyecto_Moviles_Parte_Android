@@ -1,3 +1,5 @@
+@file:Suppress("UseSQLiteDatabaseTransaction")
+
 package com.cibertec.proyecto_movil_canchas.data
 
 import android.content.ContentValues
@@ -20,7 +22,7 @@ class ReservaStore(context: Context) {
     private val dbHelper = CanchitasDbHelper.getInstance(context)
     fun agregar(cancha: Cancha, cliente: Cliente, horaInicio: Long, horas: Int): ResultadoReserva {
         if (horas !in ReglasReservas.HORAS_PERMITIDAS) return ResultadoReserva.Error
-        val horaFin = horaInicio + ReglasReservas.MS_POR_HORA
+        val horaFin = horaInicio + (horas * ReglasReservas.MS_POR_HORA)
         val db = dbHelper.writableDatabase
         db.beginTransaction()
         try {
@@ -44,7 +46,7 @@ class ReservaStore(context: Context) {
 
             db.setTransactionSuccessful()
             return ResultadoReserva.EXITO(id)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             return ResultadoReserva.Error
         } finally {
             db.endTransaction() // si no hubo setTransactionSuccessful(), hace rollback
@@ -92,6 +94,7 @@ class ReservaStore(context: Context) {
                    r.${ReservaContrato.COLUMNA_PRECIO},
                    r.${ReservaContrato.COLUMNA_MONTO_RECIBIDO},
                    r.${ReservaContrato.COLUMNA_ESTADO},
+                   r.${ReservaContrato.COLUMNA_ID_SERVIDOR},
                   (SELECT p.${PrestamoContrato.COLUMNA_ESTADO}
               FROM ${PrestamoContrato.TABLA} p
              WHERE p.${PrestamoContrato.COLUMNA_ID_RESERVA} = r.${ReservaContrato.COLUMNA_ID}
@@ -100,7 +103,8 @@ class ReservaStore(context: Context) {
             JOIN ${CanchaContrato.TABLA} c
                 ON c.${CanchaContrato.COLUMNA_ID} = r.${ReservaContrato.COLUMNA_ID_CANCHA}
             JOIN ${ClienteContrato.TABLA} cl
-                ON cl.${ClienteContrato.COLUMNA_ID} = r.${ReservaContrato.COLUMNA_ID_CLIENTE}
+                ON (cl.${ClienteContrato.COLUMNA_ID} = r.${ReservaContrato.COLUMNA_ID_CLIENTE}
+                    OR cl.${ClienteContrato.COLUMNA_ID_SERVIDOR} = r.${ReservaContrato.COLUMNA_ID_CLIENTE})
                 $clausulaWhere
             ORDER BY $col $orden
         """.trimIndent()
@@ -120,7 +124,8 @@ class ReservaStore(context: Context) {
                         precioReserva = cursor.getDouble(8),
                         montoRecibido = cursor.getDouble(9),
                         estado = cursor.getString(10),
-                        prestamoEstado = if (cursor.isNull(11)) null else cursor.getString(11)
+                        idServidor = if (!cursor.isNull(11)) cursor.getInt(11) else null,
+                        prestamoEstado = if (cursor.isNull(12)) null else cursor.getString(12)
                     )
                 )
             }
@@ -192,7 +197,7 @@ class ReservaStore(context: Context) {
 
             db.setTransactionSuccessful()
             return ResultadoRestauracion.EXITO
-        }catch (e: Exception){
+        } catch (_: Exception) {
             return ResultadoRestauracion.ERROR
         } finally {
             db.endTransaction()
@@ -282,7 +287,7 @@ class ReservaStore(context: Context) {
 
             db.setTransactionSuccessful()
             return ResultadoPago.EXITO
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             return ResultadoPago.ERROR
         } finally {
             db.endTransaction()
@@ -344,23 +349,26 @@ class ReservaStore(context: Context) {
 
         val valoresCliente = ContentValues().apply {
             put(ClienteContrato.COLUMNA_NOMBRE, nuevoNombreCliente)
+            put(ClienteContrato.COLUMNA_SYNCED, 0)
         }
-        db.update(
+        val filasCliente = db.update(
             ClienteContrato.TABLA,
             valoresCliente,
-            "${ClienteContrato.COLUMNA_ID} = ?",
-            arrayOf(clienteId.toString())
+            "${ClienteContrato.COLUMNA_ID} = ? OR ${ClienteContrato.COLUMNA_ID_SERVIDOR} = ?",
+            arrayOf(clienteId.toString(), clienteId.toString())
         )
 
         val valoresReserva = ContentValues().apply {
             put(ReservaContrato.COLUMNA_SYNCED, 0)
         }
-        return db.update(
+        val filasReserva = db.update(
             ReservaContrato.TABLA_RESERVAS,
             valoresReserva,
             "${ReservaContrato.COLUMNA_ID} = ?",
             arrayOf(idReserva.toString())
         )
+
+        return if (filasCliente > 0 || filasReserva > 0) 1 else 0
     }
 
     private fun resolverCliente(db: SQLiteDatabase, cliente: Cliente): Int? {

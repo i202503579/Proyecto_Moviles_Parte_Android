@@ -24,6 +24,7 @@ import com.cibertec.proyecto_movil_canchas.adapter.ReservaAdapter
 import com.cibertec.proyecto_movil_canchas.background.RespaldoScheduler
 import com.cibertec.proyecto_movil_canchas.data.PrestamoStore
 import com.cibertec.proyecto_movil_canchas.data.ReservaStore
+import com.cibertec.proyecto_movil_canchas.data.SyncRepository
 import com.cibertec.proyecto_movil_canchas.databinding.DialogDetalleReservaBinding
 import com.cibertec.proyecto_movil_canchas.databinding.FragmentListaReservasBinding
 import com.cibertec.proyecto_movil_canchas.model.FiltroEstado
@@ -33,6 +34,11 @@ import com.cibertec.proyecto_movil_canchas.model.Reserva
 import com.cibertec.proyecto_movil_canchas.model.ResultadoPago
 import com.cibertec.proyecto_movil_canchas.model.ResultadoPrestamo
 import com.cibertec.proyecto_movil_canchas.model.ResultadoRestauracion
+import androidx.lifecycle.lifecycleScope
+import androidx.core.content.edit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import java.util.Date
@@ -45,6 +51,7 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
     private var filtro = FiltroReservas()
     private lateinit var reservaAdapter: ReservaAdapter
     private lateinit var reservaStore: ReservaStore
+    private lateinit var syncRepository: SyncRepository
     private lateinit var sensorManager: SensorManager
     private lateinit var prestamoStore: PrestamoStore
     private var acelerometro: Sensor? = null
@@ -52,8 +59,10 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        reservaStore = ReservaStore(requireContext().applicationContext)
-        prestamoStore = PrestamoStore(requireContext().applicationContext)
+        val contexto = requireContext().applicationContext
+        reservaStore = ReservaStore(contexto)
+        syncRepository = SyncRepository(contexto)
+        prestamoStore = PrestamoStore(contexto)
         sensorManager = requireContext().getSystemService(SensorManager::class.java)
         acelerometro = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
     }
@@ -116,7 +125,7 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
         val notaLocal = obtenerNotaLocal(reserva.id)
         if (notaLocal.isNotEmpty()) {
             dialogBinding.textViewNotaDialog.visibility = View.VISIBLE
-            dialogBinding.textViewNotaDialog.text = "Nota: $notaLocal"
+            dialogBinding.textViewNotaDialog.text = getString(R.string.dialogo_nota_formato, notaLocal)
         } else {
             dialogBinding.textViewNotaDialog.visibility = View.GONE
         }
@@ -211,10 +220,13 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
         }.start()
     }
     private fun restaurarReserva(reserva: Reserva, posicion: Int? = null){
-        Thread{
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             val resultado = reservaStore.restaurar(reserva.id)
-            activity?.runOnUiThread {
-                if (_binding == null) return@runOnUiThread
+            if (resultado == ResultadoRestauracion.EXITO) {
+                syncRepository.sincronizarActualizacionReserva(reserva.id)
+            }
+            withContext(Dispatchers.Main) {
+                if (_binding == null) return@withContext
                 when (resultado){
                     ResultadoRestauracion.EXITO -> {
                         Toast.makeText(requireContext(), "Reserva restaurada correctamente", Toast.LENGTH_SHORT).show()
@@ -236,7 +248,7 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
                     }
                 }
             }
-        }.start()
+        }
     }
     private fun confirmarRestauracion(reserva: Reserva, posicion: Int){
         MaterialAlertDialogBuilder(requireContext())
@@ -282,7 +294,7 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
             .create()
 
         dialogo.setOnShowListener {
-            val botonEliminar = dialogo.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            val botonEliminar = dialogo.getButton(AlertDialog.BUTTON_POSITIVE)
             botonEliminar.isEnabled = false
             input.doAfterTextChanged { texto ->
                 botonEliminar.isEnabled = texto.toString().trim() == PALABRA_CONFIRMACION
@@ -308,7 +320,7 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
     }
     private fun limpiarNotaLocal(idReserva: Int){
         val prefs = requireContext().getSharedPreferences("notas_locales_prefs", Context.MODE_PRIVATE)
-        prefs.edit().remove("nota_reserva_$idReserva").apply()
+        prefs.edit { remove("nota_reserva_$idReserva") }
     }
     private fun mostrarPago(reserva: Reserva) {
         val input = TextInputEditText(requireContext()).apply {
@@ -332,10 +344,10 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
     }
 
     private fun registrarPago(reserva: Reserva, monto: Double) {
-        Thread {
-            val resultado = reservaStore.registrarPago(reserva.id, monto)
-            activity?.runOnUiThread {
-                if (_binding == null) return@runOnUiThread
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            val resultado = syncRepository.registrarPago(reserva.id, monto)
+            withContext(Dispatchers.Main) {
+                if (_binding == null) return@withContext
                 val mensaje = when (resultado) {
                     ResultadoPago.EXITO -> R.string.pago_registrado
                     ResultadoPago.MONTO_INVALIDO -> R.string.error_pago_invalido
@@ -347,7 +359,7 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
                 Toast.makeText(requireContext(), mensaje, Toast.LENGTH_LONG).show()
                 if (resultado == ResultadoPago.EXITO) cargarReservas()
             }
-        }.start()
+        }
     }
     private fun configurarGestos(){
         val callback = object : ItemTouchHelper.SimpleCallback(
@@ -418,24 +430,24 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
             .show()
     }
     private fun guardarEdicion(reserva: Reserva, nuevoNombre: String, posicion: Int){
-        Thread{
-            val filasActualizadas = reservaStore.actualizarCliente(reserva.id, nuevoNombre)
-            activity?.runOnUiThread{
-                if (_binding == null) return@runOnUiThread
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            val filasActualizadas = syncRepository.actualizarCliente(reserva.id, nuevoNombre)
+            withContext(Dispatchers.Main) {
+                if (_binding == null) return@withContext
+                reservaAdapter.restaurarTarjeta(posicion)
                 if (filasActualizadas > 0){
                     Toast.makeText(requireContext(), R.string.cliente_actualizado, Toast.LENGTH_SHORT).show()
                     cargarReservas()
                 } else{
-                    reservaAdapter.restaurarTarjeta(posicion)
                     Toast.makeText(requireContext(), R.string.error_actualizar_reserva, Toast.LENGTH_LONG)
                         .show()
                 }
             }
-        }.start()
+        }
     }
     private fun guardarNotaLocal(idReserva: Int, nota: String) {
         val prefs = requireContext().getSharedPreferences("notas_locales_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putString("nota_reserva_$idReserva", nota).apply()
+        prefs.edit { putString("nota_reserva_$idReserva", nota) }
     }
 
     private fun obtenerNotaLocal(idReserva: Int): String {
@@ -500,10 +512,10 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
     }
 
     private fun ejecutarReversion(reserva: Reserva, monto: Double) {
-        Thread {
-            val resultado = reservaStore.reversarPago(reserva.id, monto)
-            activity?.runOnUiThread {
-                if (_binding == null) return@runOnUiThread
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            val resultado = syncRepository.reversarPago(reserva.id, monto)
+            withContext(Dispatchers.Main) {
+                if (_binding == null) return@withContext
                 when (resultado) {
                     ResultadoPago.EXITO -> {
                         Toast.makeText(requireContext(), "Pago reversado correctamente", Toast.LENGTH_SHORT).show()
@@ -520,14 +532,14 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
                     }
                 }
             }
-        }.start()
+        }
     }
 
     private fun cancelarReserva(reserva: Reserva, posicion: Int) {
-        Thread {
-            val filas = reservaStore.cancelar(reserva.id)
-            activity?.runOnUiThread {
-                if (_binding == null) return@runOnUiThread
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            val filas = syncRepository.cancelar(reserva.id)
+            withContext(Dispatchers.Main) {
+                if (_binding == null) return@withContext
                 if (filas == 1) {
                     cargarReservas()
                 } else {
@@ -535,7 +547,7 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
                     Toast.makeText(requireContext(), R.string.error_cancelar_reserva, Toast.LENGTH_LONG).show()
                 }
             }
-        }.start()
+        }
     }
 
     private fun programarRespaldo(){
@@ -573,22 +585,32 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
     }
     private fun cargarReservas(){
         binding.progressIndicator.visibility = View.VISIBLE
-        binding.recyclerViewReservas.visibility = View.GONE
-        binding.textViewListaVacia.visibility = View.GONE
-        //thread
-        Thread{
-           val reservas = reservaStore.obtenerTodas(filtro)
 
-            activity?.runOnUiThread {
-                val bindingActual = _binding ?: return@runOnUiThread
-                reservaAdapter.actualizar(reservas)
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            val reservasLocales = reservaStore.obtenerTodas(filtro)
+            withContext(Dispatchers.Main) {
+                val bindingActual = _binding ?: return@withContext
+                reservaAdapter.actualizar(reservasLocales)
                 bindingActual.progressIndicator.visibility = View.GONE
                 bindingActual.recyclerViewReservas.visibility =
-                    if (reservas.isEmpty()) View.GONE else View.VISIBLE
+                    if (reservasLocales.isEmpty()) View.GONE else View.VISIBLE
                 bindingActual.textViewListaVacia.visibility =
-                    if (reservas.isEmpty()) View.VISIBLE else View.GONE
+                    if (reservasLocales.isEmpty()) View.VISIBLE else View.GONE
             }
-        }.start()
+
+            val syncExitosa = syncRepository.sincronizarReservas()
+            if (syncExitosa) {
+                val reservasNuevas = reservaStore.obtenerTodas(filtro)
+                withContext(Dispatchers.Main) {
+                    val bindingActual = _binding ?: return@withContext
+                    reservaAdapter.actualizar(reservasNuevas)
+                    bindingActual.recyclerViewReservas.visibility =
+                        if (reservasNuevas.isEmpty()) View.GONE else View.VISIBLE
+                    bindingActual.textViewListaVacia.visibility =
+                        if (reservasNuevas.isEmpty()) View.VISIBLE else View.GONE
+                }
+            }
+        }
     }
     private fun evaluarSacudida(valores: FloatArray){
         val x = valores[0]
@@ -611,7 +633,7 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
         val bindingActual = _binding ?: return
         val preferencias = requireContext().getSharedPreferences(
             RespaldoScheduler.PREFERENCIAS_RESPALDO,
-                    android.content.Context.MODE_PRIVATE
+            Context.MODE_PRIVATE
         )
         val ultimoRespaldo = preferencias.getLong(
             RespaldoScheduler.CLAVE_ULTIMO_RESPALDO,

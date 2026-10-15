@@ -18,12 +18,11 @@ class ReservaAdapter(
         private val reservas = mutableListOf<Reserva>()
         private val formatoHora = SimpleDateFormat("HH:mm", Locale.getDefault())
 
+        @android.annotation.SuppressLint("NotifyDataSetChanged")
         fun actualizar(nuevasReservas: List<Reserva>) {
-            val cantidadAnterior = reservas.size
             reservas.clear()
-            if (cantidadAnterior > 0) notifyItemRangeRemoved(0, cantidadAnterior)
             reservas.addAll(nuevasReservas)
-            if (reservas.isNotEmpty()) notifyItemRangeInserted(0, reservas.size)
+            notifyDataSetChanged()
         }
 
         fun obtenerReserva(position: Int): Reserva = reservas[position]

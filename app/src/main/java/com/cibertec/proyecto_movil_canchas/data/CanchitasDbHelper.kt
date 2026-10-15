@@ -123,17 +123,6 @@ class CanchitasDbHelper(context: Context) :
             )
             """.trimIndent()
         )
-
-        // SEMBRADO TEMPORAL DE CANCHAS
-        db.execSQL(
-            """
-            INSERT INTO ${CanchaContrato.TABLA}
-                (${CanchaContrato.COLUMNA_ID}, ${CanchaContrato.COLUMNA_NOMBRE}, ${CanchaContrato.COLUMNA_PRECIO})
-            VALUES
-                (1, 'Cancha 1 - Grass sintético', 50.0),
-                (2, 'Cancha 2 - Grass sintético', 50.0)
-            """.trimIndent()
-        )
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -151,7 +140,7 @@ class CanchitasDbHelper(context: Context) :
 
     companion object {
         private const val DATABASE_NAME = "canchitas_local.db"
-        private const val DATABASE_VERSION = 4
+        private const val DATABASE_VERSION = 5
 
         @Volatile
         private var instancia: CanchitasDbHelper? = null

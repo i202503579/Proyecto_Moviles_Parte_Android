@@ -55,3 +55,11 @@ data class ReservaDTO(
     val idCancha: Int = 0,
     val idUsuario: Int = 1
 )
+
+data class ClienteDTO(
+    val idCliente: Int = 0,
+    val nombreCliente: String = "",
+    val numeroDocumento: String = "",
+    val telefonoCliente: String? = null,
+    val tipoCliente: String = "Particular"
+)

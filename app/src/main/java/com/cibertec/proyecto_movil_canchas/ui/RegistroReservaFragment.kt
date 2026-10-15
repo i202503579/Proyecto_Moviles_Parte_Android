@@ -12,13 +12,15 @@ import android.widget.Toast
 import androidx.core.widget.doAfterTextChanged
 import com.cibertec.proyecto_movil_canchas.MainActivity
 import com.cibertec.proyecto_movil_canchas.R
-import com.cibertec.proyecto_movil_canchas.data.CanchaStore
-import com.cibertec.proyecto_movil_canchas.data.ClienteStore
-import com.cibertec.proyecto_movil_canchas.data.ReservaStore
+import com.cibertec.proyecto_movil_canchas.data.SyncRepository
 import com.cibertec.proyecto_movil_canchas.databinding.FragmentRegistroReservaBinding
 import com.cibertec.proyecto_movil_canchas.model.Cancha
 import com.cibertec.proyecto_movil_canchas.model.Cliente
 import com.cibertec.proyecto_movil_canchas.model.ResultadoReserva
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -29,9 +31,7 @@ class RegistroReservaFragment : Fragment() {
     private var _binding: FragmentRegistroReservaBinding? = null
     private val binding get() = _binding!!
 
-    private lateinit var reservaStore: ReservaStore
-    private lateinit var canchaStore: CanchaStore
-    private lateinit var clienteStore: ClienteStore
+    private lateinit var syncRepository: SyncRepository
 
     private var canchas: List<Cancha> = emptyList()
     private var canchaSeleccionada: Cancha? = null
@@ -50,10 +50,7 @@ class RegistroReservaFragment : Fragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val contexto = requireContext().applicationContext
-        reservaStore = ReservaStore(contexto)
-        canchaStore = CanchaStore(contexto)
-        clienteStore = ClienteStore(contexto)
-
+        syncRepository = SyncRepository(contexto)
     }
 
     override fun onCreateView(
@@ -106,10 +103,10 @@ class RegistroReservaFragment : Fragment() {
         ).show()
     }
     private fun cargarCanchas() {
-        Thread {
-            val lista = canchaStore.obtenerActivas()
-            activity?.runOnUiThread {
-                val bindingActual = _binding ?: return@runOnUiThread
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            val lista = syncRepository.sincronizarCanchas()
+            withContext(Dispatchers.Main) {
+                val bindingActual = _binding ?: return@withContext
                 canchas = lista
                 bindingActual.autoCompleteCancha.setAdapter(
                     ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, lista)
@@ -121,7 +118,7 @@ class RegistroReservaFragment : Fragment() {
                     actualizarPrecio()
                 }
             }
-        }.start()
+        }
     }
     private fun buscarCliente() {
         val documento = binding.editTextDocumento.text.toString().trim()
@@ -129,14 +126,16 @@ class RegistroReservaFragment : Fragment() {
             binding.inputLayoutDocumento.error = getString(R.string.error_documento)
             return
         }
-        Thread {
-            val cliente = clienteStore.buscarPorDocumento(documento)
-            activity?.runOnUiThread {
-                if (_binding == null) return@runOnUiThread
+        binding.buttonBuscarCliente.isEnabled = false
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            val cliente = syncRepository.buscarCliente(documento)
+            withContext(Dispatchers.Main) {
+                val bindingActual = _binding ?: return@withContext
+                bindingActual.buttonBuscarCliente.isEnabled = true
                 clienteExistente = cliente
                 if (cliente != null) mostrarClienteExistente(cliente) else mostrarClienteNuevo()
             }
-        }.start()
+        }
     }
     private fun mostrarClienteExistente(cliente: Cliente) {
         binding.editTextCliente.setText(cliente.nombre)
@@ -227,16 +226,24 @@ class RegistroReservaFragment : Fragment() {
         binding.buttonGuardarReserva.isEnabled = false
         binding.buttonGuardarReserva.setText(R.string.guardando_reserva)
 
-        Thread {
-            val resultado = reservaStore.agregar(cancha, cliente, inicio.timeInMillis, horasSeleccionadas())
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            val (resultado, enviadaAzure) = syncRepository.registrarYEnviarReserva(
+                cancha, cliente, inicio.timeInMillis, horasSeleccionadas()
+            )
 
-            activity?.runOnUiThread {
-                val bindingActual = _binding ?: return@runOnUiThread
+            withContext(Dispatchers.Main) {
+                val bindingActual = _binding ?: return@withContext
                 bindingActual.buttonGuardarReserva.isEnabled = true
                 bindingActual.buttonGuardarReserva.setText(R.string.boton_guardar_reserva)
 
                 when (resultado) {
                     is ResultadoReserva.EXITO -> {
+                        val mensaje = if (enviadaAzure) {
+                            "Reserva guardada y sincronizada con Azure"
+                        } else {
+                            "Reserva guardada localmente (pendiente de sincronización)"
+                        }
+                        Toast.makeText(requireContext(), mensaje, Toast.LENGTH_SHORT).show()
                         limpiarFormulario()
                         (activity as? MainActivity)?.abrirLista()
                     }
@@ -250,7 +257,7 @@ class RegistroReservaFragment : Fragment() {
                         ).show()
                 }
             }
-        }.start()
+        }
     }
     private fun mostrarError(mensaje: String) {
         binding.textViewErrorFormulario.text = mensaje

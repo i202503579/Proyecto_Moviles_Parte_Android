@@ -33,9 +33,25 @@ interface ApiService {
     @PUT("api/AsistenciasAPI")
     fun actualizarAsistencia(@Body asistencia: AsistenciaDTO): Call<ResponseBody>
 
+    // --- Endpoints para SyncRepository (Corrutinas) ---
+    @GET("api/CanchasAPI/GetCanchas")
+    suspend fun getCanchas(): List<CanchaDTO>
+
+    @GET("api/ClientesAPI/GetClientes")
+    suspend fun getClientes(): List<ClienteDTO>
+
+    @POST("api/ClientesAPI")
+    suspend fun postCliente(@Body cliente: ClienteDTO): retrofit2.Response<ResponseBody>
+
+    @PUT("api/ClientesAPI")
+    suspend fun putCliente(@Body cliente: ClienteDTO): retrofit2.Response<ResponseBody>
+
     @GET("api/ReservasAPI/GetReservas")
-    fun obtenerReservas(): Call<List<ReservaDTO>>
+    suspend fun getReservas(): List<ReservaDTO>
 
     @POST("api/ReservasAPI")
-    fun registrarReserva(@Body reserva: ReservaDTO): Call<ResponseBody>
-}
+    suspend fun postReserva(@Body reserva: ReservaDTO): retrofit2.Response<ResponseBody>
+
+    @PUT("api/ReservasAPI")
+    suspend fun putReserva(@Body reserva: ReservaDTO): retrofit2.Response<ResponseBody>
+}
