@@ -1,29 +1,44 @@
 package com.cibertec.proyecto_movil_canchas
 
+import android.content.Intent
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Bundle
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
+import com.cibertec.proyecto_movil_canchas.data.SessionManager
 import com.cibertec.proyecto_movil_canchas.databinding.ActivityMainBinding
 import com.cibertec.proyecto_movil_canchas.ui.ListaClasesProfesorFragment
 import com.cibertec.proyecto_movil_canchas.ui.ListaReservasFragment
+import com.cibertec.proyecto_movil_canchas.ui.LoginActivity
 import com.cibertec.proyecto_movil_canchas.ui.RegistroReservaFragment
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 class MainActivity : AppCompatActivity(), SensorEventListener {
     private lateinit var sensorManager: SensorManager
     private var sensorLuz: Sensor? = null
     private var modoOscuro = false
     private lateinit var binding: ActivityMainBinding
+    private lateinit var sessionManager: SessionManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        sessionManager = SessionManager(this)
+
+        if (!sessionManager.estaLogueado()) {
+            irALogin()
+            return
+        }
+
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         sensorManager = getSystemService(SensorManager::class.java)
         sensorLuz = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT)
+
+        configurarSesionYPermisos(savedInstanceState)
 
         binding.buttonRegistro.setOnClickListener {
             mostrarFragmento(RegistroReservaFragment())
@@ -37,9 +52,64 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             mostrarFragmento(ListaClasesProfesorFragment())
         }
 
-        if (savedInstanceState == null) {
-            mostrarFragmento(RegistroReservaFragment())
+        binding.buttonCerrarSesion.setOnClickListener {
+            confirmarCerrarSesion()
         }
+    }
+
+    private fun configurarSesionYPermisos(savedInstanceState: Bundle?) {
+        val usuario = sessionManager.obtenerUsuario()
+        val nombre = usuario?.nombreUsuario ?: "Usuario"
+        val rol = usuario?.rol ?: "Operador"
+
+        binding.textViewUsuarioSesion.text = getString(R.string.formato_usuario_sesion, nombre, rol)
+
+        when {
+            sessionManager.esProfesor() -> {
+                binding.buttonRegistro.visibility = View.GONE
+                binding.buttonLista.visibility = View.GONE
+                binding.buttonProfesor.visibility = View.VISIBLE
+                if (savedInstanceState == null) {
+                    mostrarFragmento(ListaClasesProfesorFragment())
+                }
+            }
+            sessionManager.esOperador() -> {
+                binding.buttonRegistro.visibility = View.VISIBLE
+                binding.buttonLista.visibility = View.VISIBLE
+                binding.buttonProfesor.visibility = View.GONE
+                if (savedInstanceState == null) {
+                    mostrarFragmento(RegistroReservaFragment())
+                }
+            }
+            else -> {
+                binding.buttonRegistro.visibility = View.VISIBLE
+                binding.buttonLista.visibility = View.VISIBLE
+                binding.buttonProfesor.visibility = View.VISIBLE
+                if (savedInstanceState == null) {
+                    mostrarFragmento(RegistroReservaFragment())
+                }
+            }
+        }
+    }
+
+    private fun confirmarCerrarSesion() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.dialogo_cerrar_sesion_titulo)
+            .setMessage(R.string.dialogo_cerrar_sesion_mensaje)
+            .setPositiveButton(R.string.dialogo_cerrar_sesion_confirmar) { _, _ ->
+                sessionManager.cerrarSesion()
+                irALogin()
+            }
+            .setNegativeButton(R.string.dialogo_cancelar, null)
+            .show()
+    }
+
+    private fun irALogin() {
+        val intent = Intent(this, LoginActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        startActivity(intent)
+        finish()
     }
 
     override fun onResume() {

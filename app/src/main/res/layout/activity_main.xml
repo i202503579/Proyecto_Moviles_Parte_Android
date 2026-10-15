@@ -14,15 +14,33 @@
         android:orientation="vertical"
         android:padding="@dimen/card_padding">
 
-        <TextView
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/titulo_principal"
-            android:textColor="@color/blanco"
-            android:textSize="@dimen/text_title"
-            android:textStyle="bold" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/titulo_principal"
+                android:textColor="@color/blanco"
+                android:textSize="@dimen/text_title"
+                android:textStyle="bold" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/buttonCerrarSesion"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="@string/boton_cerrar_sesion"
+                android:textColor="@color/blanco"
+                android:textSize="12sp" />
+        </LinearLayout>
 
         <TextView
+            android:id="@+id/textViewUsuarioSesion"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/gap_small"

@@ -34,6 +34,9 @@ interface ApiService {
     fun actualizarAsistencia(@Body asistencia: AsistenciaDTO): Call<ResponseBody>
 
     // --- Endpoints para SyncRepository (Corrutinas) ---
+    @GET("api/UsuariosAPI/GetUsuarios")
+    suspend fun getUsuarios(): List<UsuarioDTO>
+
     @GET("api/CanchasAPI/GetCanchas")
     suspend fun getCanchas(): List<CanchaDTO>
 

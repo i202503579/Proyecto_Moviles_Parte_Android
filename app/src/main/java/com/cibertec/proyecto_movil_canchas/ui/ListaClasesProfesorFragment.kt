@@ -9,12 +9,14 @@ import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Toast
+import androidx.core.content.edit
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.cibertec.proyecto_movil_canchas.R
 import com.cibertec.proyecto_movil_canchas.adapter.AlumnoAsistenciaAdapter
 import com.cibertec.proyecto_movil_canchas.adapter.ClaseProfesorAdapter
 import com.cibertec.proyecto_movil_canchas.data.AcademiaStore
+import com.cibertec.proyecto_movil_canchas.data.SessionManager
 import com.cibertec.proyecto_movil_canchas.databinding.DialogAsistenciaClaseBinding
 import com.cibertec.proyecto_movil_canchas.databinding.FragmentListaClasesProfesorBinding
 import com.cibertec.proyecto_movil_canchas.model.ClaseAcademia
@@ -29,6 +31,7 @@ class ListaClasesProfesorFragment : Fragment() {
     private val binding get() = _binding!!
 
     private lateinit var academiaStore: AcademiaStore
+    private lateinit var sessionManager: SessionManager
     private lateinit var claseAdapter: ClaseProfesorAdapter
 
     private var profesoresDisponibles: List<ProfesorItem> = emptyList()
@@ -38,6 +41,7 @@ class ListaClasesProfesorFragment : Fragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         academiaStore = AcademiaStore(requireContext().applicationContext)
+        sessionManager = SessionManager(requireContext().applicationContext)
     }
 
     override fun onCreateView(
@@ -74,6 +78,13 @@ class ListaClasesProfesorFragment : Fragment() {
     }
 
     private fun configurarFiltros() {
+        if (sessionManager.esProfesor()) {
+            binding.layoutFiltroProfesor.visibility = View.GONE
+            idProfesorSeleccionado = sessionManager.obtenerIdUsuario()
+        } else {
+            binding.layoutFiltroProfesor.visibility = View.VISIBLE
+        }
+
         binding.chipGroupEstadoClase.setOnCheckedStateChangeListener { _, ids ->
             filtroEstado = when (ids.firstOrNull()) {
                 R.id.chipClasesProgramadas -> FiltroEstadoClase.PROGRAMADAS
@@ -85,12 +96,14 @@ class ListaClasesProfesorFragment : Fragment() {
 
         binding.spinnerProfesor.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                idProfesorSeleccionado = if (position == 0) {
-                    null
-                } else {
-                    profesoresDisponibles.getOrNull(position - 1)?.idUsuario
+                if (!sessionManager.esProfesor()) {
+                    idProfesorSeleccionado = if (position == 0) {
+                        null
+                    } else {
+                        profesoresDisponibles.getOrNull(position - 1)?.idUsuario
+                    }
+                    cargarClasesLocales()
                 }
-                cargarClasesLocales()
             }
 
             override fun onNothingSelected(parent: AdapterView<*>?) {}
@@ -98,6 +111,12 @@ class ListaClasesProfesorFragment : Fragment() {
     }
 
     private fun cargarProfesoresYClasesLocales() {
+        if (sessionManager.esProfesor()) {
+            idProfesorSeleccionado = sessionManager.obtenerIdUsuario()
+            cargarClasesLocales()
+            return
+        }
+
         Thread {
             val profesores = academiaStore.obtenerProfesoresLocales()
             activity?.runOnUiThread {
@@ -105,7 +124,9 @@ class ListaClasesProfesorFragment : Fragment() {
                 profesoresDisponibles = profesores
 
                 val nombres = mutableListOf(getString(R.string.profesor_todos))
-                nombres.addAll(profesores.map { "${it.nombre} (ID: ${it.idUsuario})" })
+                nombres.addAll(profesores.map {
+                    getString(R.string.formato_profesor_spinner, it.nombre, it.idUsuario)
+                })
 
                 val adapterSpinner = ArrayAdapter(
                     requireContext(),
@@ -191,10 +212,18 @@ class ListaClasesProfesorFragment : Fragment() {
         val dialogBinding = DialogAsistenciaClaseBinding.inflate(layoutInflater)
         val soloLectura = clase.estadoClase == "Completada" || clase.estadoClase == "Cancelada"
 
-        dialogBinding.textViewDetalleClaseHeader.text =
-            "${clase.nombreCancha} • ${clase.fechaClase} (${clase.horaInicio} - ${clase.horaFin})"
-        dialogBinding.textViewSubdetalleClaseHeader.text =
-            "Profesor: ${clase.nombreProfesor} • Estado: ${clase.estadoClase}"
+        dialogBinding.textViewDetalleClaseHeader.text = getString(
+            R.string.formato_detalle_clase_dialogo,
+            clase.nombreCancha,
+            clase.fechaClase,
+            clase.horaInicio,
+            clase.horaFin
+        )
+        dialogBinding.textViewSubdetalleClaseHeader.text = getString(
+            R.string.formato_subdetalle_clase_dialogo,
+            clase.nombreProfesor,
+            clase.estadoClase
+        )
 
         val adapterAlumnos = AlumnoAsistenciaAdapter(alumnos, soloLectura)
         dialogBinding.recyclerViewAlumnosAsistencia.layoutManager = LinearLayoutManager(requireContext())
@@ -273,9 +302,9 @@ class ListaClasesProfesorFragment : Fragment() {
 
     private fun guardarMarcaSincronizacion() {
         requireContext().getSharedPreferences(PREFS_ACADEMIA_SYNC, Context.MODE_PRIVATE)
-            .edit()
-            .putLong(CLAVE_ULTIMO_SYNC_ACADEMIA, System.currentTimeMillis())
-            .apply()
+            .edit {
+                putLong(CLAVE_ULTIMO_SYNC_ACADEMIA, System.currentTimeMillis())
+            }
     }
 
     private fun mostrarUltimaSincronizacion() {

@@ -5,6 +5,7 @@ data class UsuarioDTO(
     val usernameUsuario: String = "",
     val nombreUsuario: String = "",
     val telefono: String = "",
+    val password: String = "",
     val activoUsuario: Boolean = true,
     val rol: String = ""
 )

@@ -182,7 +182,7 @@
             android:layout_width="match_parent"
             android:layout_height="@dimen/button_height"
             android:layout_marginTop="@dimen/gap_large"
-            android:text="Seleccionar Fecha y Hora"
+            android:text="@string/boton_seleccionar_fecha_hora"
             android:textAllCaps="false" />
 
         <TextView
