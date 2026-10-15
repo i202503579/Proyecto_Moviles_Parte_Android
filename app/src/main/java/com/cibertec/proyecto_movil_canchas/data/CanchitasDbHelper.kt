@@ -4,14 +4,15 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
-class CanchitasDbHelper(context: Context)  :
-    SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION)  {
+class CanchitasDbHelper(context: Context) :
+    SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
     override fun onConfigure(db: SQLiteDatabase) {
         super.onConfigure(db)
         // SQLite ignora las llaves foráneas si no se activan en cada conexión.
         db.setForeignKeyConstraintsEnabled(true)
     }
+
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
             """
@@ -57,21 +58,73 @@ class CanchitasDbHelper(context: Context)  :
         )
         db.execSQL(
             """
-                CREATE TABLE ${PrestamoContrato.TABLA} (
+            CREATE TABLE ${PrestamoContrato.TABLA} (
                 ${PrestamoContrato.COLUMNA_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
                 ${PrestamoContrato.COLUMNA_ID_SERVIDOR} INTEGER,
                 ${PrestamoContrato.COLUMNA_ID_RESERVA} INTEGER NOT NULL
-                REFERENCES ${ReservaContrato.TABLA_RESERVAS}(${ReservaContrato.COLUMNA_ID}),
+                    REFERENCES ${ReservaContrato.TABLA_RESERVAS}(${ReservaContrato.COLUMNA_ID}),
                 ${PrestamoContrato.COLUMNA_FECHA_ENTREGA} INTEGER NOT NULL,
                 ${PrestamoContrato.COLUMNA_FECHA_DEVOLUCION} INTEGER,
                 ${PrestamoContrato.COLUMNA_ESTADO} TEXT NOT NULL DEFAULT 'Pendiente',
                 ${PrestamoContrato.COLUMNA_SYNCED} INTEGER NOT NULL DEFAULT 0
-    )
-    """.trimIndent()
+            )
+            """.trimIndent()
         )
 
-        // SEMBRADO TEMPORAL (precios de ejemplo). Los ids deben coincidir con los de
-        // SQL Server; cuando exista el REST, esto se reemplaza por un pull del servidor.
+        // --- TABLAS DE ACADEMIA / PROFESOR ---
+        db.execSQL(
+            """
+            CREATE TABLE ${UsuarioProfesorContrato.TABLA} (
+                ${UsuarioProfesorContrato.COLUMNA_ID} INTEGER PRIMARY KEY,
+                ${UsuarioProfesorContrato.COLUMNA_NOMBRE} TEXT NOT NULL,
+                ${UsuarioProfesorContrato.COLUMNA_ROL} TEXT NOT NULL,
+                ${UsuarioProfesorContrato.COLUMNA_ACTIVO} INTEGER NOT NULL DEFAULT 1
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            CREATE TABLE ${ClaseContrato.TABLA} (
+                ${ClaseContrato.COLUMNA_ID} INTEGER PRIMARY KEY,
+                ${ClaseContrato.COLUMNA_ID_USUARIO} INTEGER NOT NULL,
+                ${ClaseContrato.COLUMNA_NOMBRE_PROFESOR} TEXT NOT NULL,
+                ${ClaseContrato.COLUMNA_ID_CANCHA} INTEGER NOT NULL,
+                ${ClaseContrato.COLUMNA_NOMBRE_CANCHA} TEXT NOT NULL,
+                ${ClaseContrato.COLUMNA_FECHA} TEXT NOT NULL,
+                ${ClaseContrato.COLUMNA_HORA_INICIO} TEXT NOT NULL,
+                ${ClaseContrato.COLUMNA_HORA_FIN} TEXT NOT NULL,
+                ${ClaseContrato.COLUMNA_ESTADO} TEXT NOT NULL DEFAULT 'Programada',
+                ${ClaseContrato.COLUMNA_ACTIVO} INTEGER NOT NULL DEFAULT 1,
+                ${ClaseContrato.COLUMNA_SYNCED} INTEGER NOT NULL DEFAULT 1
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            CREATE TABLE ${AlumnoContrato.TABLA} (
+                ${AlumnoContrato.COLUMNA_ID} INTEGER PRIMARY KEY,
+                ${AlumnoContrato.COLUMNA_NOMBRE} TEXT NOT NULL,
+                ${AlumnoContrato.COLUMNA_TELEFONO_APODERADO} TEXT,
+                ${AlumnoContrato.COLUMNA_ACTIVO} INTEGER NOT NULL DEFAULT 1,
+                ${AlumnoContrato.COLUMNA_ID_USUARIO} INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            CREATE TABLE ${AsistenciaContrato.TABLA} (
+                ${AsistenciaContrato.COLUMNA_ID_LOCAL} INTEGER PRIMARY KEY AUTOINCREMENT,
+                ${AsistenciaContrato.COLUMNA_ID_SERVIDOR} INTEGER NOT NULL DEFAULT 0,
+                ${AsistenciaContrato.COLUMNA_ID_CLASE} INTEGER NOT NULL,
+                ${AsistenciaContrato.COLUMNA_ID_ALUMNO} INTEGER NOT NULL,
+                ${AsistenciaContrato.COLUMNA_ESTADO} TEXT NOT NULL DEFAULT 'Presente',
+                ${AsistenciaContrato.COLUMNA_SYNCED} INTEGER NOT NULL DEFAULT 0,
+                UNIQUE(${AsistenciaContrato.COLUMNA_ID_CLASE}, ${AsistenciaContrato.COLUMNA_ID_ALUMNO})
+            )
+            """.trimIndent()
+        )
+
+        // SEMBRADO TEMPORAL DE CANCHAS
         db.execSQL(
             """
             INSERT INTO ${CanchaContrato.TABLA}
@@ -82,8 +135,13 @@ class CanchitasDbHelper(context: Context)  :
             """.trimIndent()
         )
     }
+
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         // Orden inverso a las dependencias. OJO: borra los datos locales.
+        db.execSQL("DROP TABLE IF EXISTS ${AsistenciaContrato.TABLA}")
+        db.execSQL("DROP TABLE IF EXISTS ${AlumnoContrato.TABLA}")
+        db.execSQL("DROP TABLE IF EXISTS ${ClaseContrato.TABLA}")
+        db.execSQL("DROP TABLE IF EXISTS ${UsuarioProfesorContrato.TABLA}")
         db.execSQL("DROP TABLE IF EXISTS ${PrestamoContrato.TABLA}")
         db.execSQL("DROP TABLE IF EXISTS ${ReservaContrato.TABLA_RESERVAS}")
         db.execSQL("DROP TABLE IF EXISTS ${ClienteContrato.TABLA}")
@@ -93,7 +151,7 @@ class CanchitasDbHelper(context: Context)  :
 
     companion object {
         private const val DATABASE_NAME = "canchitas_local.db"
-        private const val DATABASE_VERSION = 3
+        private const val DATABASE_VERSION = 4
 
         @Volatile
         private var instancia: CanchitasDbHelper? = null
@@ -103,5 +161,4 @@ class CanchitasDbHelper(context: Context)  :
                 instancia ?: CanchitasDbHelper(context.applicationContext).also { instancia = it }
             }
     }
-
 }
