@@ -38,6 +38,15 @@ class RegistroReservaFragment : Fragment() {
     private var inicioSeleccionado: Calendar? = null
     private var clienteExistente: Cliente? = null
 
+    private fun horasSeleccionadas(): Int = if(binding.radioDosHoras.isChecked) 2 else 1
+    private fun actualizarPrecio(){
+        val cancha = canchaSeleccionada ?: return
+        val horas = horasSeleccionadas()
+        binding.textViewPrecio.text =
+            getString(R.string.precio_total_formato, cancha.precioAlquiler * horas, horas)
+        binding.textViewPrecio.visibility = View.VISIBLE
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val contexto = requireContext().applicationContext
@@ -51,7 +60,6 @@ class RegistroReservaFragment : Fragment() {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        // Inflate the layout for this fragment
         _binding = FragmentRegistroReservaBinding.inflate(inflater,container,false)
         return binding.root
     }
@@ -61,14 +69,41 @@ class RegistroReservaFragment : Fragment() {
         cargarCanchas()
 
         binding.buttonBuscarCliente.setOnClickListener { buscarCliente() }
-        binding.buttonFechaHora.setOnClickListener { elegirFechaYHora() }
+        binding.buttonSeleccionarHorario.setOnClickListener { mostrarSelectorFechaHora() }
+        binding.radioGroupDuracion.setOnCheckedChangeListener { _, _ ->
+            actualizarTextoHorario()
+            actualizarPrecio()
+        }
         binding.buttonGuardarReserva.setOnClickListener { guardarReserva() }
 
-        // Si cambian el documento después de buscar, ya no es el mismo cliente.
         binding.editTextDocumento.doAfterTextChanged {
             binding.inputLayoutDocumento.error = null
             if (clienteExistente != null) reiniciarCliente()
         }
+    }
+    private fun mostrarSelectorFechaHora() {
+        val calendarioActual = Calendar.getInstance()
+        DatePickerDialog(
+            requireContext(),
+            { _, anio, mes, dia ->
+                TimePickerDialog(
+                    requireContext(),
+                    { _, hora, minuto ->
+                        inicioSeleccionado = Calendar.getInstance().apply {
+                            set(anio, mes, dia, hora, minuto, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }
+                        actualizarTextoHorario()
+                    },
+                    calendarioActual.get(Calendar.HOUR_OF_DAY),
+                    calendarioActual.get(Calendar.MINUTE),
+                    true
+                ).show()
+            },
+            calendarioActual.get(Calendar.YEAR),
+            calendarioActual.get(Calendar.MONTH),
+            calendarioActual.get(Calendar.DAY_OF_MONTH)
+        ).show()
     }
     private fun cargarCanchas() {
         Thread {
@@ -76,8 +111,6 @@ class RegistroReservaFragment : Fragment() {
             activity?.runOnUiThread {
                 val bindingActual = _binding ?: return@runOnUiThread
                 canchas = lista
-                // ArrayAdapter de objetos: muestra toString() (el nombre) pero conserva
-                // el objeto completo, con su id y su precio, al seleccionarlo.
                 bindingActual.autoCompleteCancha.setAdapter(
                     ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, lista)
                 )
@@ -85,9 +118,7 @@ class RegistroReservaFragment : Fragment() {
                     val cancha = canchas[posicion]
                     canchaSeleccionada = cancha
                     bindingActual.inputLayoutCancha.error = null
-                    bindingActual.textViewPrecio.text =
-                        getString(R.string.precio_cancha_formato, cancha.precioAlquiler)
-                    bindingActual.textViewPrecio.visibility = View.VISIBLE
+                    actualizarPrecio()
                 }
             }
         }.start()
@@ -140,36 +171,9 @@ class RegistroReservaFragment : Fragment() {
         binding.radioParticular.isEnabled = !bloquear
         binding.radioInstitucional.isEnabled = !bloquear
     }
-    private fun elegirFechaYHora() {
-        val ahora = Calendar.getInstance()
-        DatePickerDialog(
-            requireContext(),
-            { _, anio, mes, dia ->
-                TimePickerDialog(
-                    requireContext(),
-                    { _, hora, minuto ->
-                        inicioSeleccionado = Calendar.getInstance().apply {
-                            set(anio, mes, dia, hora, minuto, 0)
-                            set(Calendar.MILLISECOND, 0)
-                        }
-                        actualizarTextoHorario()
-                    },
-                    ahora.get(Calendar.HOUR_OF_DAY),
-                    0,
-                    true
-                ).show()
-            },
-            ahora.get(Calendar.YEAR),
-            ahora.get(Calendar.MONTH),
-            ahora.get(Calendar.DAY_OF_MONTH)
-        ).apply {
-            datePicker.minDate = ahora.timeInMillis // no se reserva en días pasados
-        }.show()
-    }
     private fun actualizarTextoHorario() {
         val inicio = inicioSeleccionado ?: return
-        // Regla de negocio: toda reserva dura exactamente 1 hora.
-        val fin = (inicio.clone() as Calendar).apply { add(Calendar.HOUR_OF_DAY, 1) }
+        val fin = (inicio.clone() as Calendar).apply { add(Calendar.HOUR_OF_DAY, horasSeleccionadas()) }
         val formatoFecha = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
         val formatoHora = SimpleDateFormat("HH:mm", Locale.getDefault())
         binding.textViewHorarioSeleccionado.text = getString(
@@ -224,7 +228,7 @@ class RegistroReservaFragment : Fragment() {
         binding.buttonGuardarReserva.setText(R.string.guardando_reserva)
 
         Thread {
-            val resultado = reservaStore.agregar(cancha, cliente, inicio.timeInMillis)
+            val resultado = reservaStore.agregar(cancha, cliente, inicio.timeInMillis, horasSeleccionadas())
 
             activity?.runOnUiThread {
                 val bindingActual = _binding ?: return@runOnUiThread
@@ -257,6 +261,7 @@ class RegistroReservaFragment : Fragment() {
         binding.autoCompleteCancha.setText(null, false)
         canchaSeleccionada = null
         binding.textViewPrecio.visibility = View.GONE
+        binding.radioUnaHora.isChecked = true
 
         binding.editTextDocumento.text?.clear()
         reiniciarCliente()

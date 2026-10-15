@@ -3,22 +3,24 @@ package com.cibertec.proyecto_movil_canchas.data
 import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
-import com.cibertec.proyecto_movil_canchas.R
 import com.cibertec.proyecto_movil_canchas.model.Cancha
 import com.cibertec.proyecto_movil_canchas.model.Cliente
 import com.cibertec.proyecto_movil_canchas.model.FiltroEstado
 import com.cibertec.proyecto_movil_canchas.model.FiltroReservas
 import com.cibertec.proyecto_movil_canchas.model.RangoFecha
+import com.cibertec.proyecto_movil_canchas.model.ReglasReservas
 import com.cibertec.proyecto_movil_canchas.model.Reserva
 import com.cibertec.proyecto_movil_canchas.model.ResultadoPago
 import com.cibertec.proyecto_movil_canchas.model.ResultadoReserva
+import com.cibertec.proyecto_movil_canchas.model.ResultadoRestauracion
 import com.cibertec.proyecto_movil_canchas.model.estadoSegunPago
 import com.cibertec.proyecto_movil_canchas.model.redondear
 
 class ReservaStore(context: Context) {
     private val dbHelper = CanchitasDbHelper.getInstance(context)
-    fun agregar(cancha: Cancha, cliente: Cliente, horaInicio: Long): ResultadoReserva {
-        val horaFin = horaInicio + DURACION_RESERVA_MS
+    fun agregar(cancha: Cancha, cliente: Cliente, horaInicio: Long, horas: Int): ResultadoReserva {
+        if (horas !in ReglasReservas.HORAS_PERMITIDAS) return ResultadoReserva.Error
+        val horaFin = horaInicio + ReglasReservas.MS_POR_HORA
         val db = dbHelper.writableDatabase
         db.beginTransaction()
         try {
@@ -32,7 +34,7 @@ class ReservaStore(context: Context) {
                 put(ReservaContrato.COLUMNA_ID_CLIENTE, idCliente)
                 put(ReservaContrato.COLUMNA_HORA_INICIO, horaInicio)
                 put(ReservaContrato.COLUMNA_HORA_FIN, horaFin)
-                put(ReservaContrato.COLUMNA_PRECIO, cancha.precioAlquiler)
+                put(ReservaContrato.COLUMNA_PRECIO, cancha.precioAlquiler * horas)
                 put(ReservaContrato.COLUMNA_MONTO_RECIBIDO, 0.0)
                 put(ReservaContrato.COLUMNA_ESTADO, ESTADO_INICIAL)
                 put(ReservaContrato.COLUMNA_SYNCED, 0)
@@ -89,7 +91,11 @@ class ReservaStore(context: Context) {
                    r.${ReservaContrato.COLUMNA_HORA_FIN},
                    r.${ReservaContrato.COLUMNA_PRECIO},
                    r.${ReservaContrato.COLUMNA_MONTO_RECIBIDO},
-                   r.${ReservaContrato.COLUMNA_ESTADO}
+                   r.${ReservaContrato.COLUMNA_ESTADO},
+                  (SELECT p.${PrestamoContrato.COLUMNA_ESTADO}
+              FROM ${PrestamoContrato.TABLA} p
+             WHERE p.${PrestamoContrato.COLUMNA_ID_RESERVA} = r.${ReservaContrato.COLUMNA_ID}
+             ORDER BY p.${PrestamoContrato.COLUMNA_ID} DESC LIMIT 1)
             FROM ${ReservaContrato.TABLA_RESERVAS} r
             JOIN ${CanchaContrato.TABLA} c
                 ON c.${CanchaContrato.COLUMNA_ID} = r.${ReservaContrato.COLUMNA_ID_CANCHA}
@@ -113,7 +119,8 @@ class ReservaStore(context: Context) {
                         horaFin = cursor.getLong(7),
                         precioReserva = cursor.getDouble(8),
                         montoRecibido = cursor.getDouble(9),
-                        estado = cursor.getString(10)
+                        estado = cursor.getString(10),
+                        prestamoEstado = if (cursor.isNull(11)) null else cursor.getString(11)
                     )
                 )
             }
@@ -128,6 +135,78 @@ class ReservaStore(context: Context) {
             set(java.util.Calendar.MILLISECOND, 0)
             add(java.util.Calendar.DAY_OF_YEAR, diasDesdeHoy)
         }.timeInMillis
+    fun restaurar(idReserva: Int): ResultadoRestauracion{
+        val db = dbHelper.writableDatabase
+        db.beginTransaction()
+        try {
+            var canchaId = -1
+            var horaInicio = 0L
+            var horaFin = 0L
+            var precio = 0.0
+            var recibido = 0.0
+            var estado = ""
+
+            val encontrada = db.query(
+                ReservaContrato.TABLA_RESERVAS,
+                arrayOf(
+                    ReservaContrato.COLUMNA_ID_CANCHA,
+                    ReservaContrato.COLUMNA_HORA_INICIO,
+                    ReservaContrato.COLUMNA_HORA_FIN,
+                    ReservaContrato.COLUMNA_PRECIO,
+                    ReservaContrato.COLUMNA_MONTO_RECIBIDO,
+                    ReservaContrato.COLUMNA_ESTADO,
+                ),
+                "${ReservaContrato.COLUMNA_ID} = ?",
+                arrayOf(idReserva.toString()),
+                null, null, null
+            ).use { cursor ->
+                if (cursor.moveToFirst()) {
+                    canchaId = cursor.getInt(0)
+                    horaInicio = cursor.getLong(1)
+                    horaFin = cursor.getLong(2)
+                    precio = cursor.getDouble(3)
+                    recibido = cursor.getDouble(4)
+                    estado = cursor.getString(5)
+                    true
+                } else false
+            }
+            if (!encontrada) return ResultadoRestauracion.ERROR
+            if (estado != "Cancelada") return ResultadoRestauracion.NO_PERMITIDO
+
+            if (hayChoqueDeHorario(db, canchaId, horaInicio, horaFin)) {
+                return ResultadoRestauracion.HORARIO_OCUPADO
+            }
+            val nuevoEstado = estadoSegunPago(recibido, precio)
+            val valores = ContentValues().apply {
+                put(ReservaContrato.COLUMNA_ESTADO, nuevoEstado)
+                put(ReservaContrato.COLUMNA_SYNCED, 0)
+            }
+
+            val filas = db.update(
+                ReservaContrato.TABLA_RESERVAS,
+                valores,
+                "${ReservaContrato.COLUMNA_ID} = ?",
+                arrayOf(idReserva.toString())
+            )
+            if (filas != 1) return ResultadoRestauracion.ERROR
+
+            db.setTransactionSuccessful()
+            return ResultadoRestauracion.EXITO
+        }catch (e: Exception){
+            return ResultadoRestauracion.ERROR
+        } finally {
+            db.endTransaction()
+        }
+    }
+    fun eliminacionFisicamenteLocal(idReserva: Int): Boolean{
+        val db = dbHelper.writableDatabase
+        val filasBorradas = db.delete(
+            ReservaContrato.TABLA_RESERVAS,
+            "${ReservaContrato.COLUMNA_ID} = ? AND ${ReservaContrato.COLUMNA_ESTADO} = 'Cancelada' AND ${ReservaContrato.COLUMNA_MONTO_RECIBIDO} <= ?",
+            arrayOf(idReserva.toString(), TOLERANCIA_DECIMALES.toString())
+        )
+        return filasBorradas == 1
+    }
     fun registrarPago(idReserva: Int, monto: Double): ResultadoPago {
         if (monto <= 0.0) return ResultadoPago.MONTO_INVALIDO
         return ajustarMontoRecibido(idReserva, monto, ESTADOS_SIN_COBRO)
@@ -210,7 +289,7 @@ class ReservaStore(context: Context) {
         }
     }
 
-    // aun viendo que hacer con los cancelados, si dejarlos en eliminacion fisica o logica
+
     fun cancelar(idReserva: Int): Int {
         val valores = ContentValues().apply {
             put(ReservaContrato.COLUMNA_ESTADO, "Cancelada")
@@ -219,7 +298,10 @@ class ReservaStore(context: Context) {
         return dbHelper.writableDatabase.update(
             ReservaContrato.TABLA_RESERVAS,
             valores,
-            "${ReservaContrato.COLUMNA_ID} = ? AND ${ReservaContrato.COLUMNA_ESTADO} != 'Cancelada'",
+            "${ReservaContrato.COLUMNA_ID} = ? AND ${ReservaContrato.COLUMNA_ESTADO} != 'Cancelada' " +
+                    "AND NOT EXISTS (SELECT 1 FROM ${PrestamoContrato.TABLA} p " +
+                    "WHERE p.${PrestamoContrato.COLUMNA_ID_RESERVA} = ${ReservaContrato.TABLA_RESERVAS}." +
+                    "${ReservaContrato.COLUMNA_ID} AND p.${PrestamoContrato.COLUMNA_ESTADO} = 'Pendiente')",
             arrayOf(idReserva.toString())
         )
     }
@@ -289,11 +371,10 @@ class ReservaStore(context: Context) {
     }
 
     companion object {
-        private const val DURACION_RESERVA_MS = 3_600_000L // regla: toda reserva dura 1 hora
         private const val ESTADO_INICIAL = "Pendiente"
         private const val TOLERANCIA_DECIMALES = 0.005
         private val ESTADOS_SIN_REVERSA = setOf("Completada")
-        private val ESTADOS_SIN_COBRO = setOf("Cancelada", "Confirmada")
+        private val ESTADOS_SIN_COBRO = setOf("Cancelada", "Completada")
 
     }
 }

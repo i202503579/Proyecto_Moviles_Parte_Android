@@ -2,6 +2,10 @@ package com.cibertec.proyecto_movil_canchas.ui
 
 import android.app.job.JobScheduler
 import android.content.Context
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.icu.text.DateFormat
 import android.os.Bundle
 import android.text.InputType
@@ -10,12 +14,15 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.cibertec.proyecto_movil_canchas.R
 import com.cibertec.proyecto_movil_canchas.adapter.ReservaAdapter
 import com.cibertec.proyecto_movil_canchas.background.RespaldoScheduler
+import com.cibertec.proyecto_movil_canchas.data.PrestamoStore
 import com.cibertec.proyecto_movil_canchas.data.ReservaStore
 import com.cibertec.proyecto_movil_canchas.databinding.DialogDetalleReservaBinding
 import com.cibertec.proyecto_movil_canchas.databinding.FragmentListaReservasBinding
@@ -24,20 +31,31 @@ import com.cibertec.proyecto_movil_canchas.model.FiltroReservas
 import com.cibertec.proyecto_movil_canchas.model.RangoFecha
 import com.cibertec.proyecto_movil_canchas.model.Reserva
 import com.cibertec.proyecto_movil_canchas.model.ResultadoPago
+import com.cibertec.proyecto_movil_canchas.model.ResultadoPrestamo
+import com.cibertec.proyecto_movil_canchas.model.ResultadoRestauracion
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import java.util.Date
+import kotlin.math.abs
+import kotlin.math.sqrt
 
-class ListaReservasFragment : Fragment() {
+class ListaReservasFragment : Fragment(), SensorEventListener {
     private var _binding: FragmentListaReservasBinding? = null
     private val binding get() = _binding!!
     private var filtro = FiltroReservas()
     private lateinit var reservaAdapter: ReservaAdapter
     private lateinit var reservaStore: ReservaStore
+    private lateinit var sensorManager: SensorManager
+    private lateinit var prestamoStore: PrestamoStore
+    private var acelerometro: Sensor? = null
+    private var ultimoTiempoSacudida: Long = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         reservaStore = ReservaStore(requireContext().applicationContext)
+        prestamoStore = PrestamoStore(requireContext().applicationContext)
+        sensorManager = requireContext().getSystemService(SensorManager::class.java)
+        acelerometro = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
     }
 
     override fun onCreateView(
@@ -111,19 +129,186 @@ class ListaReservasFragment : Fragment() {
             else -> R.drawable.bg_semaforo_neutro
         }
         dialogBinding.viewSemaforoDialog.setBackgroundResource(fondoSemaforo)
+        var ventana: AlertDialog? = null
+        val esInstitucional = reserva.tipoCliente == getString(R.string.institucional)
+        val esCancelada = reserva.estado == "Cancelada"
+        val balonPendiente = reserva.prestamoEstado == "Pendiente"
+        val puedeGestionarBalon = esInstitucional && !esCancelada &&
+                (reserva.prestamoEstado == null || balonPendiente)
 
         dialogBinding.buttonPrestamoBalonDialog.visibility =
-            if (reserva.tipoCliente == getString(R.string.institucional)) View.VISIBLE else View.GONE
+            if (puedeGestionarBalon) View.VISIBLE else View.GONE
+        dialogBinding.buttonPrestamoBalonDialog.setText(
+            if (balonPendiente) R.string.boton_registrar_devolucion else R.string.boton_prestar_balon
+        )
         dialogBinding.buttonPrestamoBalonDialog.setOnClickListener {
-            Toast.makeText(requireContext(), R.string.prestamo_pendiente, Toast.LENGTH_LONG).show()
+            ventana?.dismiss()
+            if (balonPendiente) mostrarDevolucion(reserva) else confirmarPrestamo(reserva)
         }
 
+        val builder = MaterialAlertDialogBuilder(requireContext()).setView(dialogBinding.root)
+        if (esCancelada){
+            builder.setPositiveButton("Quitar del dispositivo"){ _, _ ->
+                confirmarEliminacionLocal(reserva) }
+        }else{
+            builder.setPositiveButton(R.string.boton_registrar_pago){ _, _ ->
+                mostrarPago(reserva) }
+            builder.setNeutralButton(R.string.boton_anular_pago){ _, _ ->
+                mostrarAnulacionPago(reserva)}
+        }
+        builder.setNegativeButton(R.string.dialogo_volver, null)
+        ventana = builder.create()
+        ventana.show()
+    }
+    private fun confirmarPrestamo(reserva: Reserva){
         MaterialAlertDialogBuilder(requireContext())
-            .setView(dialogBinding.root)
-            .setPositiveButton(R.string.boton_registrar_pago) { _, _ -> mostrarPago(reserva) }
-            .setNeutralButton(R.string.boton_anular_pago){ _, _ -> mostrarAnulacionPago(reserva)}
+            .setTitle(R.string.dialogo_prestamo_titulo)
+            .setMessage(getString(R.string.dialogo_prestamo_mensaje, reserva.clienteNombre))
+            .setPositiveButton(R.string.dialogo_prestamo_confirmar){ _, _ ->prestarBalon(reserva)}
+            .setNegativeButton(R.string.dialogo_volver, null).show()
+    }
+    private fun prestarBalon(reserva: Reserva){
+        Thread{
+            val resultado = prestamoStore.prestar(reserva.id)
+            activity?.runOnUiThread {
+                if (_binding == null) return@runOnUiThread
+                val mensaje = when (resultado){
+                    ResultadoPrestamo.EXITO -> R.string.prestamo_registrado
+                    ResultadoPrestamo.NO_PERMITIDO -> R.string.error_prestamo_cancelada
+                    ResultadoPrestamo.NO_INSTITUCIONAL -> R.string.error_prestamo_no_institucional
+                    ResultadoPrestamo.YA_PRESTADO -> R.string.error_prestamo_ya_prestado
+                    else -> R.string.error_prestamo
+                }
+                Toast.makeText(requireContext(), mensaje, Toast.LENGTH_LONG).show()
+                if (resultado == ResultadoPrestamo.EXITO) cargarReservas()
+            }
+        }.start()
+    }
+    private fun mostrarDevolucion(reserva: Reserva){
+            val opciones = arrayOf("Devuelto", "Dañado", "Perdido")
+            var elegido = 0
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.dialogo_devolucion_titulo)
+            .setSingleChoiceItems(opciones, elegido){ _, which -> elegido = which}
+            .setPositiveButton(R.string.dialogo_devolucion_confirmar){
+                _, _ -> registrarDevolucion(reserva, opciones[elegido]) }
             .setNegativeButton(R.string.dialogo_volver, null)
             .show()
+    }
+    private fun registrarDevolucion(reserva: Reserva, estadoFinal: String){
+        Thread {
+            val resultado = prestamoStore.registrarDevolucion(reserva.id, estadoFinal)
+            activity?.runOnUiThread {
+                if (_binding == null) return@runOnUiThread
+                val mensaje = when (resultado) {
+                    ResultadoPrestamo.EXITO -> R.string.devolucion_registrada
+                    ResultadoPrestamo.SIN_PRESTAMO_PENDIENTE -> R.string.error_devolucion_sin_prestamo
+                    else -> R.string.error_devolucion
+                }
+                Toast.makeText(requireContext(), mensaje, Toast.LENGTH_LONG).show()
+                if (resultado == ResultadoPrestamo.EXITO) cargarReservas()
+            }
+        }.start()
+    }
+    private fun restaurarReserva(reserva: Reserva, posicion: Int? = null){
+        Thread{
+            val resultado = reservaStore.restaurar(reserva.id)
+            activity?.runOnUiThread {
+                if (_binding == null) return@runOnUiThread
+                when (resultado){
+                    ResultadoRestauracion.EXITO -> {
+                        Toast.makeText(requireContext(), "Reserva restaurada correctamente", Toast.LENGTH_SHORT).show()
+                        cargarReservas()
+                    }
+                    ResultadoRestauracion.HORARIO_OCUPADO -> {
+                        Toast.makeText(requireContext(), "No es posible la restauración: Horario ocupado",
+                            Toast.LENGTH_LONG).show()
+                        posicion?.let {reservaAdapter.restaurarTarjeta(it)}
+                    }
+                    ResultadoRestauracion.NO_PERMITIDO -> {
+                        Toast.makeText(requireContext(), "Solo se puede restaurar reservas canceladas",
+                            Toast.LENGTH_SHORT).show()
+                        posicion?.let { reservaAdapter.restaurarTarjeta(it) }
+                    }
+                    else -> {
+                        Toast.makeText(requireContext(), "Error al restaurar reserva", Toast.LENGTH_SHORT).show()
+                        posicion?.let { reservaAdapter.restaurarTarjeta(it) }
+                    }
+                }
+            }
+        }.start()
+    }
+    private fun confirmarRestauracion(reserva: Reserva, posicion: Int){
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Restaurar reserva")
+            .setMessage("¿Estás seguro de que deseas reactivar la reserva de ${reserva.clienteNombre} para la cancha ${reserva.canchaNombre}?")
+            .setPositiveButton("Sí, Restaurar"){
+                _, _ -> restaurarReserva(reserva,posicion)
+            }
+            .setNegativeButton(R.string.dialogo_volver){
+                _, _ -> reservaAdapter.restaurarTarjeta(posicion)
+            }
+            .setOnCancelListener {
+                reservaAdapter.restaurarTarjeta(posicion)
+            }.show()
+    }
+    private fun confirmarEliminacionLocal(reserva: Reserva, posicion: Int? = null) {
+        if (reserva.montoRecibido > 0.0) {
+            Toast.makeText(
+                requireContext(),
+                "No es puede quitar: primero debes anular/devolver el dinero registrado",
+                Toast.LENGTH_LONG
+            ).show()
+            posicion?.let { reservaAdapter.restaurarTarjeta(it) }
+            return
+        }
+        val input = TextInputEditText(requireContext()).apply {
+            hint = "Escribe ELIMINAR"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+        }
+        val dialogo = MaterialAlertDialogBuilder(requireContext())
+            .setTitle("¿Quitar de este dispositivo?")
+            .setMessage("Se eliminará la reserva de ${reserva.clienteNombre} en ${reserva.canchaNombre} únicamente de este teléfono. \n\nEscribe ELIMINAR para confirmar:")
+            .setView(input)
+            .setPositiveButton("Quitar"){ _, _ ->
+                ejecutarEliminacionLocal(reserva)
+            }
+            .setNegativeButton(R.string.dialogo_volver) { _, _ ->
+                posicion?.let { reservaAdapter.restaurarTarjeta(it) }
+            }
+            .setOnCancelListener {
+                posicion?.let { reservaAdapter.restaurarTarjeta(it) }
+            }
+            .create()
+
+        dialogo.setOnShowListener {
+            val botonEliminar = dialogo.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            botonEliminar.isEnabled = false
+            input.doAfterTextChanged { texto ->
+                botonEliminar.isEnabled = texto.toString().trim() == PALABRA_CONFIRMACION
+            }
+        }
+
+        dialogo.show()
+    }
+    private fun ejecutarEliminacionLocal(reserva: Reserva){
+        Thread{
+            val exito = reservaStore.eliminacionFisicamenteLocal(reserva.id)
+            activity?.runOnUiThread {
+                if (_binding == null) return@runOnUiThread
+                if (exito){
+                    limpiarNotaLocal(reserva.id)
+                    Toast.makeText(requireContext(), "Reserva quitada del dispositivo", Toast.LENGTH_SHORT ).show()
+                    cargarReservas()
+                } else{
+                    Toast.makeText(requireContext(), "No se pudo eliminar la reserva", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.start()
+    }
+    private fun limpiarNotaLocal(idReserva: Int){
+        val prefs = requireContext().getSharedPreferences("notas_locales_prefs", Context.MODE_PRIVATE)
+        prefs.edit().remove("nota_reserva_$idReserva").apply()
     }
     private fun mostrarPago(reserva: Reserva) {
         val input = TextInputEditText(requireContext()).apply {
@@ -178,12 +363,15 @@ class ListaReservasFragment : Fragment() {
             override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
                 val posicion = viewHolder.bindingAdapterPosition
                 if (posicion == RecyclerView.NO_POSITION) return
-
                 val reserva = reservaAdapter.obtenerReserva(posicion)
                 if (direction == ItemTouchHelper.END){
                     mostrarEdicion(reserva, posicion)
                 }else{
-                    confirmarCancelacion(reserva, posicion)
+                    if (reserva.estado == "Cancelada"){
+                        confirmarRestauracion(reserva, posicion)
+                    }else{
+                        confirmarCancelacion(reserva, posicion)
+                    }
                 }
             }
         }
@@ -255,6 +443,12 @@ class ListaReservasFragment : Fragment() {
         return prefs.getString("nota_reserva_$idReserva", "") ?: ""
     }
     private fun confirmarCancelacion(reserva: Reserva, posicion: Int) {
+        if (reserva.prestamoEstado == "Pendiente") {
+            Toast.makeText(requireContext(), R.string.error_cancelar_con_balon, Toast.LENGTH_LONG).show()
+            reservaAdapter.restaurarTarjeta(posicion)
+            return
+        }
+
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.dialogo_cancelar_reserva_titulo)
             .setMessage(getString(R.string.dialogo_cancelar_reserva_mensaje, reserva.canchaNombre, reserva.clienteNombre))
@@ -356,11 +550,26 @@ class ListaReservasFragment : Fragment() {
 
         binding.root.postDelayed({mostrarEstadoRespaldo()}, COMPROBACION_RESPALDO_MS)
     }
+    override fun onSensorChanged(event: SensorEvent){
+        when(event.sensor.type){
+            Sensor.TYPE_ACCELEROMETER -> evaluarSacudida(event.values)
+        }
+    }
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int){
 
+    }
     override fun onResume() {
         super.onResume()
         cargarReservas()
         mostrarEstadoRespaldo()
+        listOfNotNull(acelerometro).forEach { sensor ->
+            sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_UI)
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        sensorManager.unregisterListener(this)
     }
     private fun cargarReservas(){
         binding.progressIndicator.visibility = View.VISIBLE
@@ -380,6 +589,23 @@ class ListaReservasFragment : Fragment() {
                     if (reservas.isEmpty()) View.VISIBLE else View.GONE
             }
         }.start()
+    }
+    private fun evaluarSacudida(valores: FloatArray){
+        val x = valores[0]
+        val y = valores[1]
+        val z = valores[2]
+        val magnitud = sqrt((x * x + y * y + z * z).toDouble()).toFloat()
+        val aceleracionSinGravedad = abs(magnitud - SensorManager.GRAVITY_EARTH)
+
+        if(aceleracionSinGravedad > 8.0F){
+            val tiempoActual = System.currentTimeMillis()
+            if (tiempoActual - ultimoTiempoSacudida > 2000){
+                ultimoTiempoSacudida = tiempoActual
+                Toast.makeText(requireContext(), "!Dispositivo agitado¡ Actualizando reservas...",
+                    Toast.LENGTH_SHORT).show()
+                cargarReservas()
+            }
+        }
     }
     private fun mostrarEstadoRespaldo(){
         val bindingActual = _binding ?: return
@@ -406,5 +632,6 @@ class ListaReservasFragment : Fragment() {
     companion object{
         private const val COMPROBACION_RESPALDO_MS = 6_000L
         private const val SIN_RESPALDO = 0L
+        private const val PALABRA_CONFIRMACION = "ELIMINAR"
     }
 }

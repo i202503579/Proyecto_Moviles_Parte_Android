@@ -12,7 +12,8 @@ data class Reserva(
     val horaFin: Long,
     val precioReserva: Double,
     val montoRecibido: Double,
-    val estado: String
+    val estado: String,
+    val prestamoEstado: String? = null
 ){
     val saldo: Double get() = precioReserva - montoRecibido
 }

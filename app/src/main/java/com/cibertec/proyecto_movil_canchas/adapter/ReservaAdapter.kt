@@ -59,9 +59,12 @@ class ReservaAdapter(
                 binding.textViewEstado.text = reserva.estado
 
                 // RN08: la etiqueta de balón solo se muestra si la reserva es institucional.
-                binding.chipBalon.visibility =
-                    if (reserva.tipoCliente == binding.root.context.getString(R.string.institucional)) View.VISIBLE else View.GONE
-
+                binding.chipBalon.text = when(reserva.prestamoEstado){
+                    null -> binding.root.context.getString(R.string.chip_balon)
+                    "Pendiente" -> binding.root.context.getString(R.string.chip_balon_prestado)
+                    else -> binding.root.context.getString(R.string.chip_balon_estado_formato, reserva.prestamoEstado)
+                }
+                binding.chipBalon.visibility = if (reserva.tipoCliente == "Institucional") View.VISIBLE else View.GONE
                 val fondoSemaforo = when (reserva.estado) {
                     binding.root.context.getString(R.string.estado_confirmado) -> R.drawable.bg_semaforo_verde
                     binding.root.context.getString(R.string.estado_pendiente) -> R.drawable.bg_semaforo_amarillo

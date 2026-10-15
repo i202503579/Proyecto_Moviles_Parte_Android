@@ -55,6 +55,20 @@ class CanchitasDbHelper(context: Context)  :
             )
             """.trimIndent()
         )
+        db.execSQL(
+            """
+                CREATE TABLE ${PrestamoContrato.TABLA} (
+                ${PrestamoContrato.COLUMNA_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                ${PrestamoContrato.COLUMNA_ID_SERVIDOR} INTEGER,
+                ${PrestamoContrato.COLUMNA_ID_RESERVA} INTEGER NOT NULL
+                REFERENCES ${ReservaContrato.TABLA_RESERVAS}(${ReservaContrato.COLUMNA_ID}),
+                ${PrestamoContrato.COLUMNA_FECHA_ENTREGA} INTEGER NOT NULL,
+                ${PrestamoContrato.COLUMNA_FECHA_DEVOLUCION} INTEGER,
+                ${PrestamoContrato.COLUMNA_ESTADO} TEXT NOT NULL DEFAULT 'Pendiente',
+                ${PrestamoContrato.COLUMNA_SYNCED} INTEGER NOT NULL DEFAULT 0
+    )
+    """.trimIndent()
+        )
 
         // SEMBRADO TEMPORAL (precios de ejemplo). Los ids deben coincidir con los de
         // SQL Server; cuando exista el REST, esto se reemplaza por un pull del servidor.
@@ -70,6 +84,7 @@ class CanchitasDbHelper(context: Context)  :
     }
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         // Orden inverso a las dependencias. OJO: borra los datos locales.
+        db.execSQL("DROP TABLE IF EXISTS ${PrestamoContrato.TABLA}")
         db.execSQL("DROP TABLE IF EXISTS ${ReservaContrato.TABLA_RESERVAS}")
         db.execSQL("DROP TABLE IF EXISTS ${ClienteContrato.TABLA}")
         db.execSQL("DROP TABLE IF EXISTS ${CanchaContrato.TABLA}")
@@ -78,7 +93,7 @@ class CanchitasDbHelper(context: Context)  :
 
     companion object {
         private const val DATABASE_NAME = "canchitas_local.db"
-        private const val DATABASE_VERSION = 2
+        private const val DATABASE_VERSION = 3
 
         @Volatile
         private var instancia: CanchitasDbHelper? = null
