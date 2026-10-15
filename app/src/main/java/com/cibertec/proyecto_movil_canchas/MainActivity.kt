@@ -8,9 +8,9 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.cibertec.proyecto_movil_canchas.databinding.ActivityMainBinding
+import com.cibertec.proyecto_movil_canchas.ui.ListaClasesProfesorFragment
 import com.cibertec.proyecto_movil_canchas.ui.ListaReservasFragment
 import com.cibertec.proyecto_movil_canchas.ui.RegistroReservaFragment
-
 
 class MainActivity : AppCompatActivity(), SensorEventListener {
     private lateinit var sensorManager: SensorManager
@@ -33,10 +33,15 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             abrirLista()
         }
 
+        binding.buttonProfesor.setOnClickListener {
+            mostrarFragmento(ListaClasesProfesorFragment())
+        }
+
         if (savedInstanceState == null) {
             mostrarFragmento(RegistroReservaFragment())
         }
     }
+
     override fun onResume() {
         super.onResume()
         sensorLuz?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
@@ -58,6 +63,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         }
         if (nuevoModo != modoOscuro) aplicarModo(nuevoModo)
     }
+
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     private fun aplicarModo(oscuro: Boolean) {
@@ -66,14 +72,17 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             if (oscuro) R.drawable.bg_screen_oscuro else R.drawable.bg_screen
         )
     }
+
     fun abrirLista() {
         mostrarFragmento(ListaReservasFragment())
     }
+
     private fun mostrarFragmento(fragment: Fragment) {
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragmentContainer, fragment)
             .commit()
     }
+
     companion object {
         private const val UMBRAL_OSCURO = 15f   // baja de esto y oscuro
         private const val UMBRAL_CLARO = 40f    // sube de esto y claro
