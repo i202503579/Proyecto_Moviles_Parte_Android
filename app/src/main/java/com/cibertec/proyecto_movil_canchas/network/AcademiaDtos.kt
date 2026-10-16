@@ -63,4 +63,12 @@ data class ClienteDTO(
     val numeroDocumento: String = "",
     val telefonoCliente: String? = null,
     val tipoCliente: String = "Particular"
-)
+)
+data class PrestamoBalonDTO(
+    val idPrestamo: Int = 0,
+    val idReserva: Int? = null,
+    val idClase: Int? = null,
+    val fechaEntrega: String = "",
+    val fechaDevolucion: String? = null,
+    val estadoPrestamo: String = "Pendiente"
+)

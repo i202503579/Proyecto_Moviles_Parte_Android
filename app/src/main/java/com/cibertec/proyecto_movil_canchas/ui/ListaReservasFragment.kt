@@ -179,6 +179,26 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
     private fun prestarBalon(reserva: Reserva){
         Thread{
             val resultado = prestamoStore.prestar(reserva.id)
+
+            if (resultado == ResultadoPrestamo.EXITO) {
+                try {
+                    val sincronizado = kotlinx.coroutines.runBlocking {
+                        syncRepository.sincronizarPrestamo(reserva.id)
+                    }
+
+                    android.util.Log.d(
+                        "SyncPrestamo",
+                        "Reserva local ${reserva.id}: sincronización = $sincronizado"
+                    )
+                } catch (e: Exception) {
+                    android.util.Log.e(
+                        "SyncPrestamo",
+                        "Error al sincronizar el préstamo",
+                        e
+                    )
+                }
+            }
+
             activity?.runOnUiThread {
                 if (_binding == null) return@runOnUiThread
                 val mensaje = when (resultado){
@@ -207,6 +227,19 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
     private fun registrarDevolucion(reserva: Reserva, estadoFinal: String){
         Thread {
             val resultado = prestamoStore.registrarDevolucion(reserva.id, estadoFinal)
+            if (resultado == ResultadoPrestamo.EXITO) {
+                try {
+                    val sincronizado = kotlinx.coroutines.runBlocking {
+                        syncRepository.sincronizarPrestamo(reserva.id)
+                    }
+                    android.util.Log.d(
+                        "SyncPrestamo",
+                        "Devolución reserva local ${reserva.id}: sincronización = $sincronizado"
+                    )
+                } catch (e: Exception) {
+                    android.util.Log.e("SyncPrestamo", "Error al sincronizar la devolución", e)
+                }
+            }
             activity?.runOnUiThread {
                 if (_binding == null) return@runOnUiThread
                 val mensaje = when (resultado) {
@@ -279,7 +312,7 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
         }
         val dialogo = MaterialAlertDialogBuilder(requireContext())
-            .setTitle("¿Quitar de este dispositivo?")
+            .setTitle("¿Ejecutar orden 67?")
             .setMessage("Se eliminará la reserva de ${reserva.clienteNombre} en ${reserva.canchaNombre} únicamente de este teléfono. \n\nEscribe ELIMINAR para confirmar:")
             .setView(input)
             .setPositiveButton("Quitar"){ _, _ ->
@@ -303,14 +336,31 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
 
         dialogo.show()
     }
+//    private fun ejecutarEliminacionLocal(reserva: Reserva){
+//        Thread{
+//            val exito = reservaStore.eliminacionFisicamenteLocal(reserva.id)
+//            activity?.runOnUiThread {
+//                if (_binding == null) return@runOnUiThread
+//                if (exito){
+//                    limpiarNotaLocal(reserva.id)
+//                    Toast.makeText(requireContext(), "Reserva quitada del dispositivo", Toast.LENGTH_SHORT ).show()
+//                    cargarReservas()
+//                } else{
+//                    Toast.makeText(requireContext(), "No se pudo eliminar la reserva", Toast.LENGTH_SHORT).show()
+//                }
+//            }
+//        }.start()
+//    }
     private fun ejecutarEliminacionLocal(reserva: Reserva){
         Thread{
-            val exito = reservaStore.eliminacionFisicamenteLocal(reserva.id)
+            val exito = kotlinx.coroutines.runBlocking {
+                syncRepository.eliminarReservaGlobal(reserva.id)
+            }
             activity?.runOnUiThread {
                 if (_binding == null) return@runOnUiThread
                 if (exito){
                     limpiarNotaLocal(reserva.id)
-                    Toast.makeText(requireContext(), "Reserva quitada del dispositivo", Toast.LENGTH_SHORT ).show()
+                    Toast.makeText(requireContext(), "Reserva eliminada", Toast.LENGTH_SHORT).show()
                     cargarReservas()
                 } else{
                     Toast.makeText(requireContext(), "No se pudo eliminar la reserva", Toast.LENGTH_SHORT).show()
@@ -619,15 +669,20 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
         val magnitud = sqrt((x * x + y * y + z * z).toDouble()).toFloat()
         val aceleracionSinGravedad = abs(magnitud - SensorManager.GRAVITY_EARTH)
 
-        if(aceleracionSinGravedad > 8.0F){
+        if (aceleracionSinGravedad > 8.0F) {
             val tiempoActual = System.currentTimeMillis()
-            if (tiempoActual - ultimoTiempoSacudida > 2000){
+            if (tiempoActual - ultimoTiempoSacudida > 2000) {
                 ultimoTiempoSacudida = tiempoActual
-                Toast.makeText(requireContext(), "!Dispositivo agitado¡ Actualizando reservas...",
-                    Toast.LENGTH_SHORT).show()
-                cargarReservas()
+                restablecerFiltros()
             }
         }
+    }
+    private fun restablecerFiltros() {
+        filtro = FiltroReservas()
+
+        binding.chipGroupRango.check(R.id.chipProximas)
+        binding.chipGroupEstado.check(R.id.chipActivas)
+        Toast.makeText(requireContext(), "Filtros restablecidos", Toast.LENGTH_SHORT).show()
     }
     private fun mostrarEstadoRespaldo(){
         val bindingActual = _binding ?: return

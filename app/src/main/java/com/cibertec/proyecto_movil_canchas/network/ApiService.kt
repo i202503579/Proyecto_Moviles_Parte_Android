@@ -3,9 +3,11 @@ package com.cibertec.proyecto_movil_canchas.network
 import okhttp3.ResponseBody
 import retrofit2.Call
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.PUT
+import retrofit2.http.Path
 
 interface ApiService {
 
@@ -53,8 +55,28 @@ interface ApiService {
     suspend fun getReservas(): List<ReservaDTO>
 
     @POST("api/ReservasAPI")
-    suspend fun postReserva(@Body reserva: ReservaDTO): retrofit2.Response<ResponseBody>
+    suspend fun postReserva(
+        @Body reserva: ReservaDTO
+    ): retrofit2.Response<ReservaDTO>
 
     @PUT("api/ReservasAPI")
     suspend fun putReserva(@Body reserva: ReservaDTO): retrofit2.Response<ResponseBody>
-}
+    @DELETE("api/ReservasAPI/DeleteReserva/{id}")
+    suspend fun deleteReserva(@Path("id") id: Int): retrofit2.Response<ResponseBody>
+
+    @GET("api/PrestamosBalonsAPI/GetPrestamos")
+    suspend fun getPrestamos(): List<PrestamoBalonDTO>
+
+    @POST("api/PrestamosBalonsAPI")
+    suspend fun postPrestamo(
+        @Body prestamo: PrestamoBalonDTO
+    ): retrofit2.Response<PrestamoBalonDTO>
+
+    @PUT("api/PrestamosBalonsAPI")
+    suspend fun putPrestamo(
+        @Body prestamo: PrestamoBalonDTO
+    ): retrofit2.Response<okhttp3.ResponseBody>
+
+    @DELETE("api/PrestamosBalonsAPI/DeletePrestamo/{id}")
+    suspend fun deletePrestamo(@Path("id") id: Int): retrofit2.Response<ResponseBody>
+}

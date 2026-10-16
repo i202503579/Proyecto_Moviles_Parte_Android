@@ -103,8 +103,7 @@ class ReservaStore(context: Context) {
             JOIN ${CanchaContrato.TABLA} c
                 ON c.${CanchaContrato.COLUMNA_ID} = r.${ReservaContrato.COLUMNA_ID_CANCHA}
             JOIN ${ClienteContrato.TABLA} cl
-                ON (cl.${ClienteContrato.COLUMNA_ID} = r.${ReservaContrato.COLUMNA_ID_CLIENTE}
-                    OR cl.${ClienteContrato.COLUMNA_ID_SERVIDOR} = r.${ReservaContrato.COLUMNA_ID_CLIENTE})
+                ON cl.${ClienteContrato.COLUMNA_ID} = r.${ReservaContrato.COLUMNA_ID_CLIENTE}
                 $clausulaWhere
             ORDER BY $col $orden
         """.trimIndent()
@@ -203,14 +202,30 @@ class ReservaStore(context: Context) {
             db.endTransaction()
         }
     }
-    fun eliminacionFisicamenteLocal(idReserva: Int): Boolean{
+    fun eliminacionFisicamenteLocal(idReserva: Int): Boolean {
         val db = dbHelper.writableDatabase
-        val filasBorradas = db.delete(
-            ReservaContrato.TABLA_RESERVAS,
-            "${ReservaContrato.COLUMNA_ID} = ? AND ${ReservaContrato.COLUMNA_ESTADO} = 'Cancelada' AND ${ReservaContrato.COLUMNA_MONTO_RECIBIDO} <= ?",
-            arrayOf(idReserva.toString(), TOLERANCIA_DECIMALES.toString())
-        )
-        return filasBorradas == 1
+        db.beginTransaction()
+        try {
+            db.delete(
+                PrestamoContrato.TABLA,
+                "${PrestamoContrato.COLUMNA_ID_RESERVA} = ?",
+                arrayOf(idReserva.toString())
+            )
+
+            val filas = db.delete(
+                ReservaContrato.TABLA_RESERVAS,
+                "${ReservaContrato.COLUMNA_ID} = ? AND ${ReservaContrato.COLUMNA_ESTADO} = 'Cancelada' AND ${ReservaContrato.COLUMNA_MONTO_RECIBIDO} <= ?",
+                arrayOf(idReserva.toString(), TOLERANCIA_DECIMALES.toString())
+            )
+            if (filas != 1) return false   // el finally hace rollback
+
+            db.setTransactionSuccessful()
+            return true
+        } catch (e: Exception) {
+            return false
+        } finally {
+            db.endTransaction()
+        }
     }
     fun registrarPago(idReserva: Int, monto: Double): ResultadoPago {
         if (monto <= 0.0) return ResultadoPago.MONTO_INVALIDO
@@ -354,8 +369,8 @@ class ReservaStore(context: Context) {
         val filasCliente = db.update(
             ClienteContrato.TABLA,
             valoresCliente,
-            "${ClienteContrato.COLUMNA_ID} = ? OR ${ClienteContrato.COLUMNA_ID_SERVIDOR} = ?",
-            arrayOf(clienteId.toString(), clienteId.toString())
+            "${ClienteContrato.COLUMNA_ID} = ?",
+            arrayOf(clienteId.toString())
         )
 
         val valoresReserva = ContentValues().apply {

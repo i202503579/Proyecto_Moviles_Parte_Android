@@ -3,7 +3,6 @@ package com.cibertec.proyecto_movil_canchas.data
 import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
-import androidx.core.database.sqlite.transaction
 import com.cibertec.proyecto_movil_canchas.model.ResultadoPrestamo
 
 class PrestamoStore(context: Context) {

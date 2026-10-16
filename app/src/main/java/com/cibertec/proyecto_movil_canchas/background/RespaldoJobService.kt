@@ -4,6 +4,7 @@ import android.app.job.JobParameters
 import android.app.job.JobService
 import androidx.core.content.edit
 import com.cibertec.proyecto_movil_canchas.data.ReservaStore
+import com.cibertec.proyecto_movil_canchas.data.SyncRepository
 import java.io.File
 
 class RespaldoJobService: JobService() {
@@ -15,7 +16,9 @@ class RespaldoJobService: JobService() {
             val resultado = runCatching {
                 val reservas = ReservaStore(applicationContext).obtenerTodas()
                 val archivo = File(filesDir, NOMBRE_RESPALDO)
-
+                kotlinx.coroutines.runBlocking {
+                    SyncRepository(applicationContext).sincronizarReservas()
+                }
                 val contenido =buildString {
                     appendLine(CABECERA_CSV)
                     reservas.forEach { reserva ->
