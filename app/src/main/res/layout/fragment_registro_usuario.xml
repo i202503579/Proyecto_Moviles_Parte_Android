@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="@dimen/gap_medium"
+        android:background="@drawable/bg_surface_panel"
+        android:orientation="vertical"
+        android:padding="@dimen/item_padding">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/titulo_registro_usuario"
+            android:textColor="@color/azul_oscuro"
+            android:textSize="@dimen/text_section"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/subtitulo_registro_usuario"
+            android:textColor="@color/gris_texto"
+            android:textSize="@dimen/text_caption" />
+
+        <!-- NOMBRE COMPLETO -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/inputLayoutNombre"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/gap_medium"
+            android:hint="@string/hint_nombre_usuario_registro">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/editTextNombre"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textPersonName"
+                android:maxLines="1" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- USERNAME -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/inputLayoutUsername"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/gap_small"
+            android:hint="@string/hint_username_registro">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/editTextUsername"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textNoSuggestions"
+                android:maxLines="1" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- TELEFONO -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/inputLayoutTelefono"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/gap_small"
+            android:hint="@string/hint_telefono_registro">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/editTextTelefono"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="phone"
+                android:maxLines="1" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- PASSWORD -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/inputLayoutPassword"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/gap_small"
+            android:hint="@string/hint_password_registro"
+            app:passwordToggleEnabled="true">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/editTextPassword"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textPassword"
+                android:maxLines="1" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- ROL -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/gap_medium"
+            android:text="@string/label_rol_usuario"
+            android:textColor="@color/azul_oscuro"
+            android:textSize="@dimen/text_body"
+            android:textStyle="bold" />
+
+        <RadioGroup
+            android:id="@+id/radioGroupRol"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/gap_small"
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/radioOperador"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:checked="true"
+                android:text="@string/rol_operador"
+                android:textSize="@dimen/text_body" />
+
+            <RadioButton
+                android:id="@+id/radioProfesor"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/rol_profesor"
+                android:textSize="@dimen/text_body" />
+
+            <RadioButton
+                android:id="@+id/radioAdmin"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/rol_administrador"
+                android:textSize="@dimen/text_body" />
+        </RadioGroup>
+
+        <TextView
+            android:id="@+id/textViewEstadoRegistro"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/gap_small"
+            android:textColor="@color/verde_oscuro"
+            android:textSize="@dimen/text_body"
+            android:visibility="gone" />
+
+        <ProgressBar
+            android:id="@+id/progressGuardar"
+            style="?android:attr/progressBarStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="@dimen/gap_small"
+            android:visibility="gone" />
+
+        <!-- BOTON REGISTRAR -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/buttonGuardarUsuario"
+            style="@style/Widget.Material3.Button"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/button_height"
+            android:layout_marginTop="@dimen/gap_medium"
+            android:backgroundTint="@color/verde_oscuro"
+            android:text="@string/boton_guardar_usuario"
+            android:textAllCaps="false"
+            android:textColor="@color/blanco" />
+
+        <!-- SECCION SINCRONIZAR -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginVertical="@dimen/gap_large"
+            android:background="@color/gris_borde" />
+
+        <TextView
+            android:id="@+id/textViewTotalUsuarios"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/gris_texto"
+            android:textSize="@dimen/text_caption" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/buttonSincronizarAzure"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/button_height"
+            android:layout_marginTop="@dimen/gap_small"
+            android:text="@string/boton_sincronizar_usuarios"
+            android:textAllCaps="false" />
+
+    </LinearLayout>
+</ScrollView>

@@ -121,6 +121,15 @@ class LoginActivity : AppCompatActivity() {
                         }
                     }
 
+                    // Si es admin, sincronizar usuarios de Azure a Firebase en segundo plano
+                    if (sessionManager.esAdmin()) {
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            try {
+                                FirebaseManager.sincronizarUsuariosDesdeAzure()
+                            } catch (_: Exception) {}
+                        }
+                    }
+
                     irAMain()
                 } else {
                     binding.textViewErrorLogin.text = getString(R.string.login_error_credenciales)

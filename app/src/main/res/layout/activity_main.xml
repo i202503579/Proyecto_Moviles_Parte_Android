@@ -87,6 +87,17 @@
             android:backgroundTint="@color/verde_claro"
             android:text="@string/boton_profesor"
             android:textAllCaps="false" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/buttonUsuarios"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="0dp"
+            android:layout_height="@dimen/button_height"
+            android:layout_marginStart="4dp"
+            android:layout_weight="1"
+            android:backgroundTint="@color/verde_claro"
+            android:text="@string/boton_usuarios"
+            android:textAllCaps="false" />
     </LinearLayout>
 
     <androidx.fragment.app.FragmentContainerView

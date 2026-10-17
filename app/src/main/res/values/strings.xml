@@ -184,4 +184,25 @@
     <string name="formato_profesor_spinner">%1$s (ID: %2$d)</string>
     <string name="formato_detalle_clase_dialogo">%1$s • %2$s (%3$s - %4$s)</string>
     <string name="formato_subdetalle_clase_dialogo">Profesor: %1$s • Estado: %2$s</string>
+
+    <string name="boton_usuarios">Usuarios</string>
+    <string name="titulo_registro_usuario">Registrar nuevo usuario</string>
+    <string name="subtitulo_registro_usuario">Alta simultánea en Firebase Auth, Firestore y Azure SQL</string>
+    <string name="hint_nombre_usuario_registro">Nombre completo</string>
+    <string name="hint_username_registro">Nombre de usuario (login)</string>
+    <string name="hint_telefono_registro">Teléfono</string>
+    <string name="hint_password_registro">Contraseña (mínimo 6 caracteres)</string>
+    <string name="label_rol_usuario">Rol del usuario:</string>
+    <string name="rol_operador">Operador</string>
+    <string name="rol_profesor">Profesor</string>
+    <string name="rol_administrador">Administrador</string>
+    <string name="boton_guardar_usuario">Crear usuario en Firebase</string>
+    <string name="error_nombre_usuario_vacio">Ingrese el nombre completo.</string>
+    <string name="error_username_vacio">Ingrese un nombre de usuario.</string>
+    <string name="error_telefono_vacio">Ingrese un número de teléfono.</string>
+    <string name="error_password_corta">La contraseña debe tener al menos 6 caracteres.</string>
+    <string name="usuario_creado_exito">Usuario creado exitosamente en Firebase y Azure.</string>
+    <string name="error_crear_usuario">No se pudo registrar el usuario.</string>
+    <string name="titulo_lista_usuarios">Usuarios del sistema</string>
+    <string name="boton_sincronizar_usuarios">Sincronizar con Azure</string>
 </resources>

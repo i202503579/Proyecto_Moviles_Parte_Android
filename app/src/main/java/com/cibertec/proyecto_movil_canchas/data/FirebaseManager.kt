@@ -7,6 +7,7 @@ import com.cibertec.proyecto_movil_canchas.network.CanchaDTO
 import com.cibertec.proyecto_movil_canchas.network.ClaseDTO
 import com.cibertec.proyecto_movil_canchas.network.ClienteDTO
 import com.cibertec.proyecto_movil_canchas.network.ReservaDTO
+import com.cibertec.proyecto_movil_canchas.network.RetrofitClient
 import com.cibertec.proyecto_movil_canchas.network.UsuarioDTO
 import com.cibertec.proyecto_movil_canchas.model.AlumnoAsistenciaItem
 import com.google.firebase.auth.FirebaseAuth
@@ -476,6 +477,88 @@ object FirebaseManager {
         } catch (e: Exception) {
             Log.w(TAG, "Error buscando cliente en Firestore: ${e.message}")
             null
+        }
+    }
+
+    suspend fun registrarUsuario(usuario: UsuarioDTO): Boolean {
+        val usernameLimpio = usuario.usernameUsuario.trim().lowercase()
+        if (usernameLimpio.isBlank() || usuario.password.length < 6) return false
+        val email = formatearCorreo(usernameLimpio)
+
+        var idAsignado = usuario.idUsuario
+
+        // 1. Guardar en Azure SQL vía Web API
+        try {
+            val resp = RetrofitClient.apiService.postUsuario(usuario)
+            if (resp.isSuccessful) {
+                val lista = RetrofitClient.apiService.getUsuarios()
+                val creado = lista.find { it.usernameUsuario.trim().equals(usernameLimpio, ignoreCase = true) }
+                if (creado != null) {
+                    idAsignado = creado.idUsuario
+                }
+                Log.i(TAG, "Usuario $usernameLimpio creado en Azure con ID $idAsignado")
+            } else {
+                Log.w(TAG, "Aviso POST usuario Azure: HTTP ${resp.code()}")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Aviso creando usuario en Azure (modo offline): ${e.message}")
+        }
+
+        // 2. Crear en Firebase Authentication
+        try {
+            auth.createUserWithEmailAndPassword(email, usuario.password).await()
+            Log.i(TAG, "Usuario $email creado en Firebase Auth")
+        } catch (e: Exception) {
+            Log.w(TAG, "Aviso Auth (puede que ya exista): ${e.message}")
+        }
+
+        // 3. Guardar en Cloud Firestore
+        try {
+            val docId = if (idAsignado > 0) idAsignado.toString() else usernameLimpio
+            val datos = hashMapOf(
+                "idUsuario" to idAsignado,
+                "usernameUsuario" to usernameLimpio,
+                "nombreUsuario" to usuario.nombreUsuario.trim(),
+                "telefono" to usuario.telefono.trim(),
+                "email" to email,
+                "rol" to usuario.rol,
+                "password" to usuario.password,
+                "activoUsuario" to usuario.activoUsuario
+            )
+            db.collection("usuarios").document(docId).set(datos, SetOptions.merge()).await()
+            Log.i(TAG, "Usuario $docId guardado en Firestore")
+            return true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error guardando usuario en Firestore: ${e.message}")
+            return idAsignado > 0
+        }
+    }
+
+    suspend fun sincronizarUsuariosDesdeAzure() {
+        try {
+            val usuariosAzure = RetrofitClient.apiService.getUsuarios()
+            for (u in usuariosAzure) {
+                val email = formatearCorreo(u.usernameUsuario)
+                if (u.password.length >= 6) {
+                    try {
+                        auth.createUserWithEmailAndPassword(email, u.password).await()
+                    } catch (_: Exception) {}
+                }
+                val datos = hashMapOf(
+                    "idUsuario" to u.idUsuario,
+                    "usernameUsuario" to u.usernameUsuario.trim(),
+                    "nombreUsuario" to u.nombreUsuario.trim(),
+                    "telefono" to u.telefono.trim(),
+                    "email" to email,
+                    "rol" to u.rol,
+                    "password" to u.password,
+                    "activoUsuario" to u.activoUsuario
+                )
+                db.collection("usuarios").document(u.idUsuario.toString()).set(datos, SetOptions.merge()).await()
+            }
+            Log.d(TAG, "Usuarios de Azure sincronizados a Firebase exitosamente.")
+        } catch (e: Exception) {
+            Log.w(TAG, "Error sincronizando usuarios de Azure a Firebase: ${e.message}")
         }
     }
 }

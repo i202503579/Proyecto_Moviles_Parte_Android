@@ -39,6 +39,9 @@ interface ApiService {
     @GET("api/UsuariosAPI/GetUsuarios")
     suspend fun getUsuarios(): List<UsuarioDTO>
 
+    @POST("api/UsuariosAPI")
+    suspend fun postUsuario(@Body usuario: UsuarioDTO): retrofit2.Response<ResponseBody>
+
     @GET("api/CanchasAPI/GetCanchas")
     suspend fun getCanchas(): List<CanchaDTO>
 

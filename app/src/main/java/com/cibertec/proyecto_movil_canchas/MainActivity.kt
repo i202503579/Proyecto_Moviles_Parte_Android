@@ -14,6 +14,7 @@ import com.cibertec.proyecto_movil_canchas.databinding.ActivityMainBinding
 import com.cibertec.proyecto_movil_canchas.ui.ListaClasesProfesorFragment
 import com.cibertec.proyecto_movil_canchas.ui.ListaReservasFragment
 import com.cibertec.proyecto_movil_canchas.ui.LoginActivity
+import com.cibertec.proyecto_movil_canchas.ui.RegistrarUsuarioFragment
 import com.cibertec.proyecto_movil_canchas.ui.RegistroReservaFragment
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
@@ -52,6 +53,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             mostrarFragmento(ListaClasesProfesorFragment())
         }
 
+        binding.buttonUsuarios.setOnClickListener {
+            mostrarFragmento(RegistrarUsuarioFragment())
+        }
+
         binding.buttonCerrarSesion.setOnClickListener {
             confirmarCerrarSesion()
         }
@@ -69,6 +74,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 binding.buttonRegistro.visibility = View.GONE
                 binding.buttonLista.visibility = View.GONE
                 binding.buttonProfesor.visibility = View.VISIBLE
+                binding.buttonUsuarios.visibility = View.GONE
                 if (savedInstanceState == null) {
                     mostrarFragmento(ListaClasesProfesorFragment())
                 }
@@ -77,14 +83,25 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 binding.buttonRegistro.visibility = View.VISIBLE
                 binding.buttonLista.visibility = View.VISIBLE
                 binding.buttonProfesor.visibility = View.GONE
+                binding.buttonUsuarios.visibility = View.GONE
                 if (savedInstanceState == null) {
                     mostrarFragmento(RegistroReservaFragment())
+                }
+            }
+            sessionManager.esAdmin() -> {
+                binding.buttonRegistro.visibility = View.GONE
+                binding.buttonLista.visibility = View.GONE
+                binding.buttonProfesor.visibility = View.GONE
+                binding.buttonUsuarios.visibility = View.VISIBLE
+                if (savedInstanceState == null) {
+                    mostrarFragmento(RegistrarUsuarioFragment())
                 }
             }
             else -> {
                 binding.buttonRegistro.visibility = View.VISIBLE
                 binding.buttonLista.visibility = View.VISIBLE
                 binding.buttonProfesor.visibility = View.VISIBLE
+                binding.buttonUsuarios.visibility = View.GONE
                 if (savedInstanceState == null) {
                     mostrarFragmento(RegistroReservaFragment())
                 }
