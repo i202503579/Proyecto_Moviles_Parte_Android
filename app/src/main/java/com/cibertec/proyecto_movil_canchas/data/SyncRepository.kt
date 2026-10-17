@@ -173,22 +173,22 @@ class SyncRepository(context: Context) {
 
         // 1. Buscar en SQLite local
         val local = clienteStore.buscarPorDocumento(docLimpio)
-            if (local != null) {
-                runCatching {
-                    FirebaseManager.replicarClientes(
-                        listOf(
-                            ClienteDTO(
-                                idCliente = local.id,
-                                nombreCliente = local.nombre,
-                                numeroDocumento = local.numeroDocumento,
-                                telefonoCliente = local.telefono,
-                                tipoCliente = local.tipoCliente
-                            )
+        if (local != null) {
+            runCatching {
+                FirebaseManager.replicarClientes(
+                    listOf(
+                        ClienteDTO(
+                            idCliente = local.id,
+                            nombreCliente = local.nombre,
+                            numeroDocumento = local.numeroDocumento,
+                            telefonoCliente = local.telefono,
+                            tipoCliente = local.tipoCliente
                         )
                     )
-                }
-                return local
+                )
             }
+            return local
+        }
 
         // 2. Buscar en Azure
         val remotoAzure = try {
@@ -273,6 +273,7 @@ class SyncRepository(context: Context) {
         }
         return ids
     }
+
     suspend fun eliminarReservaGlobal(idReservaLocal: Int): Boolean {
         return try {
             val idServidor = obtenerIdReservaServidor(idReservaLocal)
@@ -284,18 +285,28 @@ class SyncRepository(context: Context) {
 
                 for (p in prestamos) {
                     val r = RetrofitClient.apiService.deletePrestamo(p.idPrestamo)
-                    if (!r.isSuccessful && esFalloReal(r, "DELETE préstamo ${p.idPrestamo}")) return false
+                    if (!r.isSuccessful && esFalloReal(
+                            r,
+                            "DELETE préstamo ${p.idPrestamo}"
+                        )
+                    ) return false
                 }
 
                 // 2. Borrar la reserva
                 val resp = RetrofitClient.apiService.deleteReserva(idServidor)
-                if (!resp.isSuccessful && esFalloReal(resp, "DELETE reserva $idServidor")) return false
+                if (!resp.isSuccessful && esFalloReal(
+                        resp,
+                        "DELETE reserva $idServidor"
+                    )
+                ) return false
             }
 
             // 3. Borrar de Cloud Firestore
             try {
-                FirebaseManager.db.collection("reservas").document(idReservaLocal.toString()).delete()
-            } catch (_: Exception) {}
+                FirebaseManager.db.collection("reservas").document(idReservaLocal.toString())
+                    .delete()
+            } catch (_: Exception) {
+            }
 
             // 4. Borrar local (préstamo y reserva)
             reservaStore.eliminacionFisicamenteLocal(idReservaLocal)
@@ -312,6 +323,7 @@ class SyncRepository(context: Context) {
         Log.e(TAG, "$contexto: HTTP ${resp.code()} - $cuerpo")
         return true
     }
+
     suspend fun sincronizarReservas(): Boolean {
         return try {
             sincronizarReservasPendientes()
@@ -334,13 +346,22 @@ class SyncRepository(context: Context) {
                             val docCli = doc.getString("numeroDocumento").orEmpty()
                             val telCli = doc.getString("telefonoCliente").orEmpty()
                             val tipoCli = doc.getString("tipoCliente") ?: "Particular"
-                            val hIni = doc.getLong("horaInicioMillis") ?: (try { isoFormat.parse(doc.getString("horaInicio").orEmpty())?.time ?: 0L } catch (_: Exception) { 0L })
-                            val hFin = doc.getLong("horaFinMillis") ?: (try { isoFormat.parse(doc.getString("horaFin").orEmpty())?.time ?: 0L } catch (_: Exception) { 0L })
+                            val hIni = doc.getLong("horaInicioMillis") ?: (try {
+                                isoFormat.parse(doc.getString("horaInicio").orEmpty())?.time ?: 0L
+                            } catch (_: Exception) {
+                                0L
+                            })
+                            val hFin = doc.getLong("horaFinMillis") ?: (try {
+                                isoFormat.parse(doc.getString("horaFin").orEmpty())?.time ?: 0L
+                            } catch (_: Exception) {
+                                0L
+                            })
                             val precio = doc.getDouble("precioReserva") ?: 0.0
                             val monto = doc.getDouble("montoRecibido") ?: 0.0
                             val estado = doc.getString("estadoReserva") ?: "Pendiente"
                             val idUsuario = (doc.getLong("idUsuario") ?: 1L).toInt()
-                            val idClienteLocal = obtenerOCrearCliente(nombreCli, docCli, telCli, tipoCli)
+                            val idClienteLocal =
+                                obtenerOCrearCliente(nombreCli, docCli, telCli, tipoCli)
 
                             val valores = ContentValues().apply {
                                 put(ReservaContrato.COLUMNA_ID, id)
@@ -379,10 +400,19 @@ class SyncRepository(context: Context) {
                 db.beginTransaction()
                 try {
                     for (r in reservasApi) {
-                        val inicioMillis = try { isoFormat.parse(r.horaInicio)?.time ?: 0L } catch (_: Exception) { 0L }
-                        val finMillis = try { isoFormat.parse(r.horaFin)?.time ?: 0L } catch (_: Exception) { 0L }
+                        val inicioMillis = try {
+                            isoFormat.parse(r.horaInicio)?.time ?: 0L
+                        } catch (_: Exception) {
+                            0L
+                        }
+                        val finMillis = try {
+                            isoFormat.parse(r.horaFin)?.time ?: 0L
+                        } catch (_: Exception) {
+                            0L
+                        }
 
-                        val idClienteLocal = resolverClienteLocalPorServidor(db, r.idCliente) ?: continue
+                        val idClienteLocal =
+                            resolverClienteLocalPorServidor(db, r.idCliente) ?: continue
 
                         val valores = ContentValues().apply {
                             put(ReservaContrato.COLUMNA_ID_SERVIDOR, r.idReserva)
@@ -545,11 +575,18 @@ class SyncRepository(context: Context) {
                         FirebaseManager.db.collection("reservas")
                             .document(idReservaLocal.toString())
                             .update("idServidorAzure", idAsignado)
-                    } catch (_: Exception) {}
-                    Log.i(TAG, "Reserva local $idReservaLocal guardada con éxito en Azure con ID $idAsignado")
+                    } catch (_: Exception) {
+                    }
+                    Log.i(
+                        TAG,
+                        "Reserva local $idReservaLocal guardada con éxito en Azure con ID $idAsignado"
+                    )
                 }
             } else {
-                Log.e(TAG, "Error Azure postReserva: HTTP ${resp.code()} - ${resp.errorBody()?.string()}")
+                Log.e(
+                    TAG,
+                    "Error Azure postReserva: HTTP ${resp.code()} - ${resp.errorBody()?.string()}"
+                )
             }
         } catch (e: Exception) {
             Log.w(TAG, "Aviso Azure reserva: ${e.message}")
@@ -647,7 +684,10 @@ class SyncRepository(context: Context) {
                     )
                     val resp = RetrofitClient.apiService.putCliente(dto)
                     if (resp.isSuccessful) {
-                        Log.i(TAG, "Cliente $idClienteServidor actualizado con éxito en Azure a: $nuevoNombre")
+                        Log.i(
+                            TAG,
+                            "Cliente $idClienteServidor actualizado con éxito en Azure a: $nuevoNombre"
+                        )
                         val valSync = ContentValues().apply {
                             put(ClienteContrato.COLUMNA_SYNCED, 1)
                         }
@@ -658,7 +698,10 @@ class SyncRepository(context: Context) {
                             arrayOf(idClienteServidor.toString())
                         )
                     } else {
-                        Log.e(TAG, "Error en PUT Cliente $idClienteServidor: ${resp.errorBody()?.string()}")
+                        Log.e(
+                            TAG,
+                            "Error en PUT Cliente $idClienteServidor: ${resp.errorBody()?.string()}"
+                        )
                     }
                 }
             } catch (e: Exception) {
@@ -712,7 +755,9 @@ class SyncRepository(context: Context) {
                     val listaAzure = RetrofitClient.apiService.getReservas()
                     val match = listaAzure.lastOrNull { r ->
                         r.idCancha == idCancha &&
-                        Math.abs((isoFormat.parse(r.horaInicio)?.time ?: 0L) - horaInicio) < 60_000L
+                                Math.abs(
+                                    (isoFormat.parse(r.horaInicio)?.time ?: 0L) - horaInicio
+                                ) < 60_000L
                     }
                     if (match != null) {
                         idServidor = match.idReserva
@@ -747,7 +792,8 @@ class SyncRepository(context: Context) {
             }
 
             if (idServidor > 0) {
-                val idClienteServidor = resolverClienteServidorPorLocal(db, idClienteLocal) ?: idClienteLocal
+                val idClienteServidor =
+                    resolverClienteServidorPorLocal(db, idClienteLocal) ?: idClienteLocal
                 val dto = ReservaDTO(
                     idReserva = idServidor,
                     horaInicio = isoFormat.format(Date(horaInicio)),
@@ -777,6 +823,7 @@ class SyncRepository(context: Context) {
             false
         }
     }
+
     private suspend fun asegurarClienteEnServidor(cliente: Cliente): Int {
         val lista = RetrofitClient.apiService.getClientes()
 
@@ -905,7 +952,10 @@ class SyncRepository(context: Context) {
         val db = dbHelper.writableDatabase
 
         return try {
-            android.util.Log.d("SyncPrestamo", "Iniciando sincronización. Reserva local: $idReservaLocal")
+            android.util.Log.d(
+                "SyncPrestamo",
+                "Iniciando sincronización. Reserva local: $idReservaLocal"
+            )
 
             var idPrestamoServidor = 0
             var fechaEntregaStr = ""
@@ -925,7 +975,10 @@ class SyncRepository(context: Context) {
                 arrayOf(idReservaLocal.toString())
             ).use { cursor ->
                 if (!cursor.moveToFirst()) {
-                    android.util.Log.e("SyncPrestamo", "No existe préstamo local para reserva $idReservaLocal")
+                    android.util.Log.e(
+                        "SyncPrestamo",
+                        "No existe préstamo local para reserva $idReservaLocal"
+                    )
                     return false
                 }
 
@@ -946,13 +999,19 @@ class SyncRepository(context: Context) {
             var idReservaServidor = obtenerIdReservaServidor(idReservaLocal)
 
             if (idReservaServidor == null || idReservaServidor <= 0) {
-                Log.w("SyncPrestamo", "Reserva $idReservaLocal sin ID de Azure, intentando vincularla...")
+                Log.w(
+                    "SyncPrestamo",
+                    "Reserva $idReservaLocal sin ID de Azure, intentando vincularla..."
+                )
                 sincronizarActualizacionReserva(idReservaLocal)
                 idReservaServidor = obtenerIdReservaServidor(idReservaLocal)
             }
 
             if (idReservaServidor == null || idReservaServidor <= 0) {
-                Log.e("SyncPrestamo", "La reserva local $idReservaLocal sigue sin ID válido de Azure. Se reintentará luego.")
+                Log.e(
+                    "SyncPrestamo",
+                    "La reserva local $idReservaLocal sigue sin ID válido de Azure. Se reintentará luego."
+                )
                 return false
             }
             // 2b. Evitar duplicados: si Azure ya tiene un préstamo para esta reserva, vincularlo
@@ -989,7 +1048,10 @@ class SyncRepository(context: Context) {
                 val response = RetrofitClient.apiService.postPrestamo(dto)
 
                 if (!response.isSuccessful) {
-                    Log.e("SyncPrestamo", "POST rechazado. HTTP ${response.code()}: ${response.errorBody()?.string()}")
+                    Log.e(
+                        "SyncPrestamo",
+                        "POST rechazado. HTTP ${response.code()}: ${response.errorBody()?.string()}"
+                    )
                     return false
                 }
 
@@ -1059,6 +1121,7 @@ class SyncRepository(context: Context) {
             false
         }
     }
+
     suspend fun sincronizarPrestamosPendientes() {
         val db = dbHelper.readableDatabase
         val pendientes = mutableListOf<Int>()
@@ -1080,9 +1143,11 @@ class SyncRepository(context: Context) {
             sincronizarPrestamo(idReservaLocal)
         }
     }
+
     suspend fun sincronizarPrestamosDesdeAzure() = prestamoMutex.withLock {
         sincronizarPrestamosDesdeAzureInterno()
     }
+
     suspend fun sincronizarPrestamosDesdeAzureInterno() {
         try {
             val prestamosApi = RetrofitClient.apiService.getPrestamos()
@@ -1093,11 +1158,20 @@ class SyncRepository(context: Context) {
                 for (p in prestamosApi) {
                     // Solo los préstamos ligados a una reserva (los de clase se ignoran por ahora)
                     val idReservaServidor = p.idReserva ?: continue
-                    val idReservaLocal = resolverReservaLocalPorServidor(db, idReservaServidor) ?: continue
+                    val idReservaLocal =
+                        resolverReservaLocalPorServidor(db, idReservaServidor) ?: continue
 
-                    val entregaMillis = try { isoFormat.parse(p.fechaEntrega)?.time ?: 0L } catch (_: Exception) { 0L }
+                    val entregaMillis = try {
+                        isoFormat.parse(p.fechaEntrega)?.time ?: 0L
+                    } catch (_: Exception) {
+                        0L
+                    }
                     val devolucionMillis = p.fechaDevolucion?.let {
-                        try { isoFormat.parse(it)?.time } catch (_: Exception) { null }
+                        try {
+                            isoFormat.parse(it)?.time
+                        } catch (_: Exception) {
+                            null
+                        }
                     }
 
                     val valores = ContentValues().apply {
@@ -1135,7 +1209,10 @@ class SyncRepository(context: Context) {
                     }
                     // Si ya hay un préstamo local para esta reserva, es un duplicado de Azure: ignorar
                     if (filas == 0 && existePrestamoPorReserva(db, idReservaLocal)) {
-                        Log.w(TAG, "Préstamo duplicado en Azure para reserva local $idReservaLocal, se ignora")
+                        Log.w(
+                            TAG,
+                            "Préstamo duplicado en Azure para reserva local $idReservaLocal, se ignora"
+                        )
                         continue
                     }
                     // 4. Si no existe de ninguna forma, insertar
@@ -1151,6 +1228,7 @@ class SyncRepository(context: Context) {
             Log.w(TAG, "Error sincronizando préstamos desde Azure: ${e.message}")
         }
     }
+
     private fun existePrestamoPorReserva(db: SQLiteDatabase, idReservaLocal: Int): Boolean {
         db.query(
             PrestamoContrato.TABLA,
@@ -1160,6 +1238,7 @@ class SyncRepository(context: Context) {
             null, null, null
         ).use { cursor -> return cursor.moveToFirst() }
     }
+
     private fun resolverReservaLocalPorServidor(db: SQLiteDatabase, idServidor: Int): Int? {
         db.query(
             ReservaContrato.TABLA_RESERVAS,
@@ -1184,6 +1263,7 @@ class SyncRepository(context: Context) {
             return cursor.moveToFirst()
         }
     }
+
     ///
     ////
     //// cosa por si se cae la conexion y evitar enviar la informacion de mala manera
@@ -1276,12 +1356,20 @@ class SyncRepository(context: Context) {
         val existente = RetrofitClient.apiService.getReservas().firstOrNull { r ->
             r.idCancha == p.idCancha &&
                     r.idCliente == idClienteServidor &&
-                    Math.abs((isoFormat.parse(r.horaInicio)?.time ?: 0L) - p.horaInicio) < 60_000L &&
-                    !existeReservaLocalConServidor(db, r.idReserva)   // no robarle la reserva a otra fila local
+                    Math.abs(
+                        (isoFormat.parse(r.horaInicio)?.time ?: 0L) - p.horaInicio
+                    ) < 60_000L &&
+                    !existeReservaLocalConServidor(
+                        db,
+                        r.idReserva
+                    )   // no robarle la reserva a otra fila local
         }
 
         if (existente != null) {
-            Log.w(TAG, "Reserva local ${p.idLocal} ya existía en Azure (${existente.idReserva}); se vincula")
+            Log.w(
+                TAG,
+                "Reserva local ${p.idLocal} ya existía en Azure (${existente.idReserva}); se vincula"
+            )
             val valId = ContentValues().apply {
                 put(ReservaContrato.COLUMNA_ID_SERVIDOR, existente.idReserva)
             }
@@ -1315,10 +1403,18 @@ class SyncRepository(context: Context) {
                 marcarReservaSincronizada(p.idLocal.toLong(), idAsignado)
                 Log.i(TAG, "Reserva local ${p.idLocal} enviada a Azure con ID $idAsignado")
             } else {
-                Log.e(TAG, "Azure creó la reserva ${p.idLocal} pero no devolvió un IdReserva válido")
+                Log.e(
+                    TAG,
+                    "Azure creó la reserva ${p.idLocal} pero no devolvió un IdReserva válido"
+                )
             }
         } else {
-            Log.e(TAG, "POST reserva ${p.idLocal} rechazado: HTTP ${resp.code()} - ${resp.errorBody()?.string()}")
+            Log.e(
+                TAG,
+                "POST reserva ${p.idLocal} rechazado: HTTP ${resp.code()} - ${
+                    resp.errorBody()?.string()
+                }"
+            )
         }
     }
 
@@ -1331,6 +1427,7 @@ class SyncRepository(context: Context) {
             null, null, null
         ).use { cursor -> return cursor.moveToFirst() }
     }
+
     ////
     ////
     /// Para clientes
@@ -1393,13 +1490,19 @@ class SyncRepository(context: Context) {
                         arrayOf(p.idServidor.toString())
                     )
                 } else {
-                    Log.e(TAG, "PUT cliente ${p.idServidor}: HTTP ${resp.code()} - ${resp.errorBody()?.string()}")
+                    Log.e(
+                        TAG,
+                        "PUT cliente ${p.idServidor}: HTTP ${resp.code()} - ${
+                            resp.errorBody()?.string()
+                        }"
+                    )
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Cliente ${p.idServidor} sigue pendiente: ${e.message}")
             }
         }
     }
+
     companion object {
         private const val TAG = "SyncRepository"
         private val prestamoMutex = Mutex()
