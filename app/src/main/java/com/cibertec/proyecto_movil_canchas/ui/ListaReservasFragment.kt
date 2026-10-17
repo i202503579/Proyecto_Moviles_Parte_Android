@@ -336,21 +336,7 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
 
         dialogo.show()
     }
-//    private fun ejecutarEliminacionLocal(reserva: Reserva){
-//        Thread{
-//            val exito = reservaStore.eliminacionFisicamenteLocal(reserva.id)
-//            activity?.runOnUiThread {
-//                if (_binding == null) return@runOnUiThread
-//                if (exito){
-//                    limpiarNotaLocal(reserva.id)
-//                    Toast.makeText(requireContext(), "Reserva quitada del dispositivo", Toast.LENGTH_SHORT ).show()
-//                    cargarReservas()
-//                } else{
-//                    Toast.makeText(requireContext(), "No se pudo eliminar la reserva", Toast.LENGTH_SHORT).show()
-//                }
-//            }
-//        }.start()
-//    }
+
     private fun ejecutarEliminacionLocal(reserva: Reserva){
         Thread{
             val exito = kotlinx.coroutines.runBlocking {
@@ -530,7 +516,6 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
             hint = "Monto a descontar/reversar"
         }
 
-        // Primer diálogo: Ingresar el monto
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Anular / Reversar Pago")
             .setMessage("Monto recibido actual: S/ ${reserva.montoRecibido}\n\nIngresa la cantidad a descontar:")
@@ -542,7 +527,7 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
                 } else if (monto > reserva.montoRecibido) {
                     Toast.makeText(requireContext(), "El monto a descontar supera lo pagado", Toast.LENGTH_SHORT).show()
                 } else {
-                    // Segundo paso: Diálogo de confirmación de seguridad (Trazabilidad visual)
+                    // Diálogo de confirmación de seguridad (Trazabilidad visual)
                     confirmarEjecucionReversion(reserva, monto)
                 }
             }

@@ -42,7 +42,7 @@ object PrestamoContrato {
     const val COLUMNA_ID_RESERVA = "id_reserva"
     const val COLUMNA_FECHA_ENTREGA = "fecha_entrega"
     const val COLUMNA_FECHA_DEVOLUCION = "fecha_devolucion"  //null hasta q lo devuelban
-    const val COLUMNA_ESTADO = "estado"                      // Pendiente | Devuelto | Dañado | Perdido
+    const val COLUMNA_ESTADO = "estado"           // Pendiente | Devuelto | Dañado | Perdido
     const val COLUMNA_SYNCED = "synced"
 }
 

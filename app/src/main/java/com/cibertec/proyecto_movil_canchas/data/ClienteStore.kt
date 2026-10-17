@@ -7,12 +7,10 @@ import com.cibertec.proyecto_movil_canchas.model.Cliente
 
 class ClienteStore(context: Context) {
     private val dbHelper = CanchitasDbHelper.getInstance(context)
-    // Uso desde la pantalla (botón "Buscar").
     fun buscarPorDocumento(documento: String): Cliente? =
         buscarPorDocumento(dbHelper.readableDatabase, documento)
 
-    // Estas dos reciben el `db` para que ReservaStore las ejecute DENTRO de su
-    // transacción (cliente nuevo + reserva se guardan juntos o no se guarda nada).
+    // se ejecuta dentro de ReservaStore (cliente nuevo + reserva se guardan juntos o no se guarda nada).
     companion object {
         fun buscarPorDocumento(db: SQLiteDatabase, documento: String): Cliente? {
             db.query(
@@ -38,8 +36,7 @@ class ClienteStore(context: Context) {
                 )
             }
         }
-
-        // Devuelve el id local, o -1 si falló.
+        // if (!fallo) return idLocal else return -1
         fun insertar(db: SQLiteDatabase, cliente: Cliente): Long {
             val valores = ContentValues().apply {
                 put(ClienteContrato.COLUMNA_NOMBRE, cliente.nombre)

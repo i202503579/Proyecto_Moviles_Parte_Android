@@ -29,7 +29,6 @@
             android:textColor="@color/gris_texto"
             android:textSize="@dimen/text_caption" />
 
-        <!-- NOMBRE COMPLETO -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/inputLayoutNombre"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
@@ -46,7 +45,6 @@
                 android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- USERNAME -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/inputLayoutUsername"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
@@ -63,7 +61,6 @@
                 android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- TELEFONO -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/inputLayoutTelefono"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
@@ -80,7 +77,6 @@
                 android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- PASSWORD -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/inputLayoutPassword"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
@@ -98,7 +94,6 @@
                 android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- ROL -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -159,7 +154,6 @@
             android:layout_marginTop="@dimen/gap_small"
             android:visibility="gone" />
 
-        <!-- BOTON REGISTRAR -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/buttonGuardarUsuario"
             style="@style/Widget.Material3.Button"
@@ -171,7 +165,6 @@
             android:textAllCaps="false"
             android:textColor="@color/blanco" />
 
-        <!-- SECCION SINCRONIZAR -->
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"

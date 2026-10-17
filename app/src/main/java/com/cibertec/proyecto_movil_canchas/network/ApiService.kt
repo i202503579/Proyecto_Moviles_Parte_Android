@@ -35,7 +35,8 @@ interface ApiService {
     @PUT("api/AsistenciasAPI")
     fun actualizarAsistencia(@Body asistencia: AsistenciaDTO): Call<ResponseBody>
 
-    // --- Endpoints para SyncRepository (Corrutinas) ---
+    // --- Endpoints con soporte para corrutinas --- //
+
     @GET("api/UsuariosAPI/GetUsuarios")
     suspend fun getUsuarios(): List<UsuarioDTO>
 
@@ -58,9 +59,7 @@ interface ApiService {
     suspend fun getReservas(): List<ReservaDTO>
 
     @POST("api/ReservasAPI")
-    suspend fun postReserva(
-        @Body reserva: ReservaDTO
-    ): retrofit2.Response<ReservaDTO>
+    suspend fun postReserva(@Body reserva: ReservaDTO): retrofit2.Response<ReservaDTO>
 
     @PUT("api/ReservasAPI")
     suspend fun putReserva(@Body reserva: ReservaDTO): retrofit2.Response<ResponseBody>
@@ -71,14 +70,10 @@ interface ApiService {
     suspend fun getPrestamos(): List<PrestamoBalonDTO>
 
     @POST("api/PrestamosBalonsAPI")
-    suspend fun postPrestamo(
-        @Body prestamo: PrestamoBalonDTO
-    ): retrofit2.Response<PrestamoBalonDTO>
+    suspend fun postPrestamo(@Body prestamo: PrestamoBalonDTO): retrofit2.Response<PrestamoBalonDTO>
 
     @PUT("api/PrestamosBalonsAPI")
-    suspend fun putPrestamo(
-        @Body prestamo: PrestamoBalonDTO
-    ): retrofit2.Response<okhttp3.ResponseBody>
+    suspend fun putPrestamo(@Body prestamo: PrestamoBalonDTO): retrofit2.Response<okhttp3.ResponseBody>
 
     @DELETE("api/PrestamosBalonsAPI/DeletePrestamo/{id}")
     suspend fun deletePrestamo(@Path("id") id: Int): retrofit2.Response<ResponseBody>

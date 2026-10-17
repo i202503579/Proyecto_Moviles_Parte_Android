@@ -38,8 +38,6 @@ class RespaldoJobService: JobService() {
                     }
                 }
                 archivo.writeText(contenido)
-                // SharedPreferences guarda un dato sencillo de estado; SQLite conserva
-                // las solicitudes y Files conserva el respaldo y las imágenes.
                 getSharedPreferences(
                     RespaldoScheduler.PREFERENCIAS_RESPALDO,
                         MODE_PRIVATE
@@ -54,13 +52,11 @@ class RespaldoJobService: JobService() {
             name = "respaldo-reservas"
             start()
         }
-        // true informa que todavía existe trabajo ejecutándose después de onStartJob().
         return true
     }
-
+    // Solicita otro intento si el sistema interrumpió la tarea.
     override fun onStopJob(params: JobParameters?): Boolean {
         hiloRespaldo?.interrupt()
-        // true solicita otro intento si el sistema interrumpió la tarea.
         return true
     }
 

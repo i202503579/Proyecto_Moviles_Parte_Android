@@ -31,9 +31,7 @@ class SyncRepository(context: Context) {
 
     private val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
 
-    // ==========================================
     // 1. SINCRONIZAR CANCHAS (FIRESTORE / AZURE)
-    // ==========================================
     suspend fun sincronizarCanchas(): List<Cancha> {
         // 1. Intentar desde Cloud Firestore
         try {
@@ -71,7 +69,6 @@ class SyncRepository(context: Context) {
             Log.w(TAG, "Aviso Firestore canchas: ${e.message}")
         }
 
-        // 2. Respaldo Azure si no se pudo con Firestore
         try {
             val canchasApi = RetrofitClient.apiService.getCanchas()
             val db = dbHelper.writableDatabase
@@ -102,22 +99,16 @@ class SyncRepository(context: Context) {
         return canchaStore.obtenerActivas()
     }
 
-    // ==========================================
     // 2. SINCRONIZAR CLIENTES (AZURE + FIREBASE)
-    // ==========================================
     suspend fun sincronizarClientes() {
         try {
-            // 1. Primero la red (puede suspender). Todavía no hay transacción abierta.
             val clientesApi = RetrofitClient.apiService.getClientes()
 
-            // 2. Transacción solo con SQLite, en una función NO suspend.
             guardarClientesLocal(clientesApi)
 
-            // 3. Replicar a Firestore fuera de la transacción y sin esperar confirmación.
             runCatching { FirebaseManager.replicarClientes(clientesApi) }
         } catch (e: Exception) {
             Log.w(TAG, "Error sincronizando clientes desde Azure: ${e.message}")
-            // Si Azure no responde, descargar clientes desde Cloud Firestore
             try {
                 val clientesFire = FirebaseManager.obtenerClientes()
                 guardarClientesLocal(clientesFire)
@@ -127,8 +118,7 @@ class SyncRepository(context: Context) {
         }
     }
 
-    // IMPORTANTE: esta función NO es suspend a propósito. Entre beginTransaction()
-    // y endTransaction() no debe haber nada que suspenda (red, await, withContext).
+    // IMPORTANTE: no usar suspend entre beginTransaction() y endTransaction()
     private fun guardarClientesLocal(clientes: List<ClienteDTO>) {
         val db = dbHelper.writableDatabase
         db.beginTransaction()
@@ -164,14 +154,11 @@ class SyncRepository(context: Context) {
         }
     }
 
-    // ==========================================
     // 3. BUSCAR CLIENTE (LOCAL + AZURE + FIREBASE)
-    // ==========================================
     suspend fun buscarCliente(documento: String): Cliente? {
         val docLimpio = documento.trim()
         if (docLimpio.isBlank()) return null
 
-        // 1. Buscar en SQLite local
         val local = clienteStore.buscarPorDocumento(docLimpio)
         if (local != null) {
             runCatching {
@@ -190,7 +177,6 @@ class SyncRepository(context: Context) {
             return local
         }
 
-        // 2. Buscar en Azure
         val remotoAzure = try {
             val lista = RetrofitClient.apiService.getClientes()
             lista.find { it.numeroDocumento.trim().equals(docLimpio, ignoreCase = true) }
@@ -218,7 +204,6 @@ class SyncRepository(context: Context) {
 
             val idFinal = if (idNuevo > 0) idNuevo.toInt() else remotoAzure.idCliente
 
-            // Replicar en Firestore
             runCatching { FirebaseManager.replicarClientes(listOf(remotoAzure)) }
 
             return Cliente(
@@ -230,7 +215,6 @@ class SyncRepository(context: Context) {
             )
         }
 
-        // 3. Si no está en Azure o falló, buscar en Cloud Firestore
         val remotoFire = FirebaseManager.buscarClienteEnFirestore(docLimpio)
         if (remotoFire != null) {
             val db = dbHelper.writableDatabase
@@ -263,23 +247,12 @@ class SyncRepository(context: Context) {
         return null
     }
 
-    // ==========================================
     // 4. SINCRONIZAR RESERVAS DESDE AZURE
-    // ==========================================
-    private fun obtenerReservasOcultas(db: SQLiteDatabase): Set<Int> {
-        val ids = mutableSetOf<Int>()
-        db.rawQuery("SELECT id_servidor FROM reservas_ocultas", null).use { cursor ->
-            while (cursor.moveToNext()) ids.add(cursor.getInt(0))
-        }
-        return ids
-    }
-
     suspend fun eliminarReservaGlobal(idReservaLocal: Int): Boolean {
         return try {
             val idServidor = obtenerIdReservaServidor(idReservaLocal)
 
             if (idServidor != null && idServidor > 0) {
-                // 1. Borrar primero los préstamos de esa reserva en Azure
                 val prestamos = RetrofitClient.apiService.getPrestamos()
                     .filter { it.idReserva == idServidor }
 
@@ -292,7 +265,6 @@ class SyncRepository(context: Context) {
                     ) return false
                 }
 
-                // 2. Borrar la reserva
                 val resp = RetrofitClient.apiService.deleteReserva(idServidor)
                 if (!resp.isSuccessful && esFalloReal(
                         resp,
@@ -301,14 +273,12 @@ class SyncRepository(context: Context) {
                 ) return false
             }
 
-            // 3. Borrar de Cloud Firestore
             try {
                 FirebaseManager.db.collection("reservas").document(idReservaLocal.toString())
                     .delete()
             } catch (_: Exception) {
             }
 
-            // 4. Borrar local (préstamo y reserva)
             reservaStore.eliminacionFisicamenteLocal(idReservaLocal)
         } catch (e: Exception) {
             Log.e(TAG, "Error eliminando reserva globalmente: ${e.message}", e)
@@ -316,7 +286,7 @@ class SyncRepository(context: Context) {
         }
     }
 
-    // true = error de verdad; false = el registro ya no existía en Azure (se considera ok)
+    // true = error; false = el registro ya no existía en la nube
     private fun esFalloReal(resp: retrofit2.Response<*>, contexto: String): Boolean {
         val cuerpo = resp.errorBody()?.string().orEmpty()
         if (resp.code() == 400 && cuerpo.contains("no existente", ignoreCase = true)) return false
@@ -331,7 +301,6 @@ class SyncRepository(context: Context) {
             sincronizarCanchas()
             sincronizarClientes()
 
-            // 1. Sincronizar desde Cloud Firestore en tiempo real
             try {
                 val snapshot = FirebaseManager.db.collection("reservas").get().await()
                 if (!snapshot.isEmpty) {
@@ -392,7 +361,6 @@ class SyncRepository(context: Context) {
                 Log.w(TAG, "Aviso sincronizando reservas desde Firestore: ${e.message}")
             }
 
-            // 2. Sincronizar desde Azure (respaldo)
             try {
                 val reservasApi = RetrofitClient.apiService.getReservas()
                 val db = dbHelper.writableDatabase
@@ -427,7 +395,6 @@ class SyncRepository(context: Context) {
                             put(ReservaContrato.COLUMNA_SYNCED, 1)
                         }
 
-                        // 1. Intentar actualizar por id_servidor
                         var filas = db.update(
                             ReservaContrato.TABLA_RESERVAS,
                             valores,
@@ -435,7 +402,6 @@ class SyncRepository(context: Context) {
                             arrayOf(r.idReserva.toString())
                         )
 
-                        // 2. Si no existía por id_servidor, vincular a reserva local que tenga la misma cancha y hora de inicio
                         if (filas == 0) {
                             filas = db.update(
                                 ReservaContrato.TABLA_RESERVAS,
@@ -445,7 +411,6 @@ class SyncRepository(context: Context) {
                             )
                         }
 
-                        // 3. Solo si no existe ni por servidor ni por horario local, insertar
                         if (filas == 0) {
                             db.insert(ReservaContrato.TABLA_RESERVAS, null, valores)
                         }
@@ -471,9 +436,7 @@ class SyncRepository(context: Context) {
         }
     }
 
-    // ==========================================
     // 5. REGISTRAR Y ENVIAR RESERVA A AZURE
-    // ==========================================
     suspend fun registrarYEnviarReserva(
         cancha: Cancha,
         cliente: Cliente,
@@ -501,7 +464,6 @@ class SyncRepository(context: Context) {
 
         var enviadaServidor = false
 
-        // 1. Guardar en Cloud Firestore en tiempo real
         try {
             val datosFirestore = hashMapOf(
                 "idReserva" to idReservaLocal.toInt(),
@@ -546,7 +508,6 @@ class SyncRepository(context: Context) {
             Log.w(TAG, "Aviso Firestore reserva: ${e.message}")
         }
 
-        // 2. Respaldo a Azure
         try {
             val idClienteServidor = asegurarClienteEnServidor(cliente)
 
@@ -595,9 +556,7 @@ class SyncRepository(context: Context) {
         return Pair(resultadoLocal, enviadaServidor)
     }
 
-    // ==========================================
     // 6. OPERACIONES UNIFICADAS DE PAGO Y GESTIÓN
-    // ==========================================
     suspend fun registrarPago(idReservaLocal: Int, monto: Double): ResultadoPago {
         val resultado = reservaStore.registrarPago(idReservaLocal, monto)
         if (resultado == ResultadoPago.EXITO) {
@@ -625,7 +584,6 @@ class SyncRepository(context: Context) {
     suspend fun actualizarCliente(idReservaLocal: Int, nuevoNombre: String): Int {
         val db = dbHelper.writableDatabase
 
-        // 1. Obtener datos actuales del cliente vinculado a esta reserva
         var idClienteServidor = 0
         var documento = ""
         var telefono: String? = null
@@ -651,10 +609,8 @@ class SyncRepository(context: Context) {
             }
         }
 
-        // 2. Actualizar en SQLite local
         val filas = reservaStore.actualizarCliente(idReservaLocal, nuevoNombre)
 
-        // 3. Sincronizar el nuevo nombre con Azure
         if (filas > 0) {
             try {
                 if (idClienteServidor <= 0 && documento.isNotBlank()) {
@@ -713,9 +669,7 @@ class SyncRepository(context: Context) {
         return filas
     }
 
-    // ==========================================
     // 7. ENVIAR ACTUALIZACIÓN DE ESTADO/PAGO A AZURE (PUT)
-    // ==========================================
     suspend fun sincronizarActualizacionReserva(idReservaLocal: Int): Boolean {
         return try {
             val db = dbHelper.writableDatabase
@@ -749,7 +703,6 @@ class SyncRepository(context: Context) {
                 }
             }
 
-            // Si aún no tenía el idServidor guardado, buscarlo en Azure por horario y cancha
             if (idServidor <= 0) {
                 try {
                     val listaAzure = RetrofitClient.apiService.getReservas()
@@ -776,7 +729,6 @@ class SyncRepository(context: Context) {
                 }
             }
 
-            // Actualizar en Cloud Firestore en tiempo real
             try {
                 val updateFirestore = hashMapOf<String, Any>(
                     "estadoReserva" to estado,
@@ -944,7 +896,7 @@ class SyncRepository(context: Context) {
         }
     }
 
-    // --- SINCRONIZAR PRÉSTAMOS DE BALONES A AZURE ---
+    // --- SINCRONIZAR PRÉSTAMOS DE BALONES ---
     suspend fun sincronizarPrestamo(idReservaLocal: Int): Boolean =
         prestamoMutex.withLock { sincronizarPrestamoInterno(idReservaLocal) }
 
@@ -995,7 +947,6 @@ class SyncRepository(context: Context) {
                 estadoPrestamo = cursor.getString(3)
             }
 
-            // 2. Obtener el ID de la reserva en Azure (si falta, intentar vincularla primero).
             var idReservaServidor = obtenerIdReservaServidor(idReservaLocal)
 
             if (idReservaServidor == null || idReservaServidor <= 0) {
@@ -1014,7 +965,6 @@ class SyncRepository(context: Context) {
                 )
                 return false
             }
-            // 2b. Evitar duplicados: si Azure ya tiene un préstamo para esta reserva, vincularlo
             if (idPrestamoServidor <= 0) {
                 try {
                     val existente = RetrofitClient.apiService.getPrestamos()
@@ -1029,10 +979,9 @@ class SyncRepository(context: Context) {
                     }
                 } catch (e: Exception) {
                     Log.w("SyncPrestamo", "No se pudo verificar duplicados: ${e.message}")
-                    return false   // mejor no arriesgar un POST duplicado sin poder verificar
+                    return false
                 }
             }
-            // 3. Preparar los datos del préstamo.
             val dto = PrestamoBalonDTO(
                 idPrestamo = idPrestamoServidor,
                 idReserva = idReservaServidor,
@@ -1042,8 +991,6 @@ class SyncRepository(context: Context) {
                 estadoPrestamo = estadoPrestamo
             )
 
-
-            // 4. Crear o actualizar el préstamo en Azure.
             if (idPrestamoServidor <= 0) {
                 val response = RetrofitClient.apiService.postPrestamo(dto)
 
@@ -1074,8 +1021,6 @@ class SyncRepository(context: Context) {
             }
 
 
-            // 5. Guardar el ID de Azure y marcar como sincronizado.
-            // 5a. Guardar siempre el ID de Azure.
             val valId = ContentValues().apply {
                 put(PrestamoContrato.COLUMNA_ID_SERVIDOR, idPrestamoServidor)
             }
@@ -1093,7 +1038,7 @@ class SyncRepository(context: Context) {
                 return false
             }
 
-            // 5b. Marcar como sincronizado solo si el estado no cambió mientras se enviaba.
+            // Marcar como sincronizado solo si el estado no cambió mientras se enviaba.
             val valSync = ContentValues().apply {
                 put(PrestamoContrato.COLUMNA_SYNCED, 1)
             }
@@ -1156,7 +1101,7 @@ class SyncRepository(context: Context) {
             db.beginTransaction()
             try {
                 for (p in prestamosApi) {
-                    // Solo los préstamos ligados a una reserva (los de clase se ignoran por ahora)
+                    // Solo los préstamos ligados a una reserva
                     val idReservaServidor = p.idReserva ?: continue
                     val idReservaLocal =
                         resolverReservaLocalPorServidor(db, idReservaServidor) ?: continue
@@ -1187,7 +1132,6 @@ class SyncRepository(context: Context) {
                         put(PrestamoContrato.COLUMNA_SYNCED, 1)
                     }
 
-                    // 1. Actualizar por id_servidor (solo si no hay cambios locales pendientes)
                     var filas = db.update(
                         PrestamoContrato.TABLA,
                         valores,
@@ -1195,10 +1139,8 @@ class SyncRepository(context: Context) {
                         arrayOf(p.idPrestamo.toString())
                     )
 
-                    // 2. Si ya existe localmente por id_servidor (con cambios pendientes), no tocar
                     if (filas == 0 && existePrestamoPorServidor(db, p.idPrestamo)) continue
 
-                    // 3. Vincular un préstamo local de la misma reserva que aún no tenga id_servidor
                     if (filas == 0) {
                         filas = db.update(
                             PrestamoContrato.TABLA,
@@ -1215,7 +1157,7 @@ class SyncRepository(context: Context) {
                         )
                         continue
                     }
-                    // 4. Si no existe de ninguna forma, insertar
+                    // Si no existe de ninguna forma, insertar
                     if (filas == 0) {
                         db.insert(PrestamoContrato.TABLA, null, valores)
                     }
@@ -1264,9 +1206,7 @@ class SyncRepository(context: Context) {
         }
     }
 
-    ///
-    ////
-    //// cosa por si se cae la conexion y evitar enviar la informacion de mala manera
+    //// por si se cae la conexion y evitar enviar la informacion de mala manera
     private class ReservaPendiente(
         val idLocal: Int,
         val idServidor: Int,
@@ -1337,7 +1277,7 @@ class SyncRepository(context: Context) {
         for (p in obtenerReservasPendientes()) {
             try {
                 if (p.idServidor > 0) {
-                    // Ya existe en Azure: solo enviar los cambios locales (pago, cancelación, etc.)
+                    // si existe en la nube enviar solo lo local
                     sincronizarActualizacionReserva(p.idLocal)
                 } else {
                     enviarReservaPendiente(p)
@@ -1428,9 +1368,7 @@ class SyncRepository(context: Context) {
         ).use { cursor -> return cursor.moveToFirst() }
     }
 
-    ////
-    ////
-    /// Para clientes
+    /// lo mismo q se hizo con reservas arriba ahora para clientes
     suspend fun sincronizarClientesPendientes() {
         class Pendiente(
             val idServidor: Int,

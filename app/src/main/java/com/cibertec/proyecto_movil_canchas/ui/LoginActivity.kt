@@ -140,13 +140,11 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private suspend fun validarCredenciales(user: String, pass: String): UsuarioDTO? {
-        // 1. Intentar validar con Firebase Authentication y Cloud Firestore
         try {
             val usuarioFirebase = FirebaseManager.autenticar(user, pass)
             if (usuarioFirebase != null) return usuarioFirebase
         } catch (_: Exception) {}
 
-        // 2. Intentar con Azure (si está disponible)
         try {
             val listaRemota = RetrofitClient.apiService.getUsuarios()
             val encontrado = listaRemota.find {
@@ -156,7 +154,6 @@ class LoginActivity : AppCompatActivity() {
             if (encontrado != null) return encontrado
         } catch (_: Exception) {}
 
-        // 3. Modo offline / respaldo local
         val cuentasRespaldo = listOf(
             UsuarioDTO(1, "admin", "Administrador Principal", "999000143", "admin123", true, "Administrador"),
             UsuarioDTO(2, "operador1", "Carlos Recepción", "999000222", "123456", true, "Operador"),

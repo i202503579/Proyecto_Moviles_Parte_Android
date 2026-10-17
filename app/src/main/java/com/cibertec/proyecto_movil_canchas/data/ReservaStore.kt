@@ -237,11 +237,7 @@ class ReservaStore(context: Context) {
         return ajustarMontoRecibido(idReserva, -montoAReversar, ESTADOS_SIN_REVERSA)
     }
 
-    /**
-     * Suma `delta` al monto recibido: positivo = cobro, negativo = anulación.
-     * El estado se recalcula siempre a partir del dinero resultante, así que el
-     * monto debe quedar entre 0 y el precio.
-     */
+    //delta += montoRecibido: + = cobro, - anula. EstadoActual = dineroResultado
     private fun ajustarMontoRecibido(
         idReserva: Int,
         delta: Double,
@@ -278,10 +274,8 @@ class ReservaStore(context: Context) {
             if (nuevoMonto > precio + TOLERANCIA_DECIMALES) return ResultadoPago.EXCEDE_SALDO
             if (nuevoMonto < -TOLERANCIA_DECIMALES) return ResultadoPago.EXCEDE_PAGADO
 
-            // coerceIn absorbe residuos de decimales (-0.0000001 pasa a 0.0)
             val montoFinal = redondear(nuevoMonto.coerceIn(0.0, precio))
-            // Determinamos el nuevo estado: si la reserva ya estaba Cancelada, se respeta;
-                // de lo contrario, se calcula normalmente según el dinero recibido.
+
             val nuevoEstado = if (estado == "Cancelada") {
                 "Cancelada"
             } else {
@@ -325,7 +319,6 @@ class ReservaStore(context: Context) {
             arrayOf(idReserva.toString())
         )
     }
-
 
     // Dos reservas de la misma cancha se cruzan si inicio1 < fin2 Y inicio2 < fin1.
     private fun hayChoqueDeHorario(

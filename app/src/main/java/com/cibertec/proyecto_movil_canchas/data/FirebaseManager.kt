@@ -129,18 +129,14 @@ object FirebaseManager {
         // Las clases inician vacías para que el usuario las cree manualmente
     }
 
-    /**
-     * Autentica el usuario contra Firebase Authentication y recupera su perfil y rol desde Firestore.
-     */
+   // Firebase Authentication para recuperar su perfil y rol desde Firestore.
     suspend fun autenticar(usernameOUsuario: String, pass: String): UsuarioDTO? {
         val email = formatearCorreo(usernameOUsuario)
 
-        // 1. Intentar autenticar con Firebase Authentication
         runCatching {
             auth.signInWithEmailAndPassword(email, pass).await()
         }
 
-        // 2. Buscar perfil en Firestore por usernameUsuario o por email
         val queryUser = runCatching {
             db.collection("usuarios")
                 .whereEqualTo("usernameUsuario", usernameOUsuario.trim())
@@ -186,48 +182,6 @@ object FirebaseManager {
                     descripcionCancha = doc.getString("descripcionCancha").orEmpty(),
                     precioAlquiler = doc.getDouble("precioAlquiler") ?: 0.0,
                     activoCancha = doc.getBoolean("activoCancha") ?: true
-                )
-            }
-        } catch (_: Exception) {
-            emptyList()
-        }
-    }
-
-    suspend fun guardarReserva(reserva: ReservaDTO): Boolean {
-        return try {
-            val idStr = if (reserva.idReserva > 0) reserva.idReserva.toString() else System.currentTimeMillis().toString()
-            val datos = hashMapOf(
-                "idReserva" to (if (reserva.idReserva > 0) reserva.idReserva else idStr.takeLast(6).toInt()),
-                "horaInicio" to reserva.horaInicio,
-                "horaFin" to reserva.horaFin,
-                "precioReserva" to reserva.precioReserva,
-                "estadoReserva" to reserva.estadoReserva,
-                "montoRecibido" to reserva.montoRecibido,
-                "idCliente" to reserva.idCliente,
-                "idCancha" to reserva.idCancha,
-                "idUsuario" to reserva.idUsuario
-            )
-            db.collection("reservas").document(idStr).set(datos, SetOptions.merge()).await()
-            true
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    suspend fun obtenerReservas(): List<ReservaDTO> {
-        return try {
-            val snapshot = db.collection("reservas").get().await()
-            snapshot.documents.mapNotNull { doc ->
-                ReservaDTO(
-                    idReserva = (doc.getLong("idReserva") ?: 0L).toInt(),
-                    horaInicio = doc.getString("horaInicio").orEmpty(),
-                    horaFin = doc.getString("horaFin").orEmpty(),
-                    precioReserva = doc.getDouble("precioReserva") ?: 0.0,
-                    estadoReserva = doc.getString("estadoReserva") ?: "Pendiente",
-                    montoRecibido = doc.getDouble("montoRecibido") ?: 0.0,
-                    idCliente = (doc.getLong("idCliente") ?: 0L).toInt(),
-                    idCancha = (doc.getLong("idCancha") ?: 0L).toInt(),
-                    idUsuario = (doc.getLong("idUsuario") ?: 1L).toInt()
                 )
             }
         } catch (_: Exception) {
@@ -378,42 +332,7 @@ object FirebaseManager {
             emptyList()
         }
     }
-
-    suspend fun sincronizarAlumno(alumno: AlumnoDTO) {
-        try {
-            val d = hashMapOf(
-                "idAlumno" to alumno.idAlumno,
-                "nombreAlumno" to alumno.nombreAlumno,
-                "telefonoApoderado" to (alumno.telefonoApoderado ?: ""),
-                "fechaIngreso" to (alumno.fechaIngreso ?: ""),
-                "activoAlumno" to alumno.activoAlumno,
-                "idUsuario" to alumno.idUsuario
-            )
-            db.collection("alumnos").document(alumno.idAlumno.toString()).set(d, SetOptions.merge()).await()
-        } catch (e: Exception) {
-            Log.w(TAG, "Aviso sincronizando alumno en Firestore: ${e.message}")
-        }
-    }
-
-    suspend fun sincronizarClase(clase: ClaseDTO) {
-        try {
-            val d = hashMapOf(
-                "idClase" to clase.idClase,
-                "idUsuario" to clase.idUsuario,
-                "idCancha" to clase.idCancha,
-                "fechaClase" to clase.fechaClase,
-                "horaInicio" to clase.horaInicio,
-                "horaFin" to clase.horaFin,
-                "estadoClase" to clase.estadoClase,
-                "activoClase" to clase.activoClase
-            )
-            db.collection("clases").document(clase.idClase.toString()).set(d, SetOptions.merge()).await()
-        } catch (e: Exception) {
-            Log.w(TAG, "Aviso sincronizando clase en Firestore: ${e.message}")
-        }
-    }
-    // Replica clientes a Firestore SIN suspender ni esperar al servidor.
-    // Firestore guarda la escritura localmente y la envía cuando hay red.
+    // Replicar a Firestore, sin suspender ni esperar al server
     fun replicarClientes(clientes: List<ClienteDTO>) {
         // Un lote admite máximo 500 operaciones
         clientes.filter { it.numeroDocumento.isNotBlank() }.chunked(400).forEach { grupo ->
@@ -434,7 +353,7 @@ object FirebaseManager {
             }
         }
     }
-    // Replica alumnos y clases a Firestore en lotes, SIN suspender ni esperar al servidor.
+    // Replicar a Firestore, sin suspender ni esperar al server
     fun replicarAlumnosYClases(alumnos: List<AlumnoDTO>, clases: List<ClaseDTO>) {
         alumnos.chunked(400).forEach { grupo ->
             val lote = db.batch()
@@ -473,23 +392,6 @@ object FirebaseManager {
             }
         }
     }
-    suspend fun sincronizarCliente(cliente: ClienteDTO) {
-        val docLimpio = cliente.numeroDocumento.trim()
-        if (docLimpio.isBlank()) return
-        try {
-            val d = hashMapOf(
-                "idCliente" to cliente.idCliente,
-                "nombreCliente" to cliente.nombreCliente,
-                "numeroDocumento" to docLimpio,
-                "telefonoCliente" to (cliente.telefonoCliente ?: ""),
-                "tipoCliente" to cliente.tipoCliente
-            )
-            db.collection("clientes").document(docLimpio).set(d, SetOptions.merge()).await()
-        } catch (e: Exception) {
-            Log.w(TAG, "Aviso sincronizando cliente en Firestore: ${e.message}")
-        }
-    }
-
     suspend fun obtenerClientes(): List<ClienteDTO> {
         return try {
             val snapshot = db.collection("clientes").get().await()
@@ -547,7 +449,6 @@ object FirebaseManager {
 
         var idAsignado = usuario.idUsuario
 
-        // 1. Guardar en Azure SQL vía Web API
         try {
             val resp = RetrofitClient.apiService.postUsuario(usuario)
             if (resp.isSuccessful) {
@@ -564,7 +465,6 @@ object FirebaseManager {
             Log.w(TAG, "Aviso creando usuario en Azure (modo offline): ${e.message}")
         }
 
-        // 2. Crear en Firebase Authentication
         try {
             auth.createUserWithEmailAndPassword(email, usuario.password).await()
             Log.i(TAG, "Usuario $email creado en Firebase Auth")
@@ -572,7 +472,6 @@ object FirebaseManager {
             Log.w(TAG, "Aviso Auth (puede que ya exista): ${e.message}")
         }
 
-        // 3. Guardar en Cloud Firestore
         try {
             val docId = if (idAsignado > 0) idAsignado.toString() else usernameLimpio
             val datos = hashMapOf(

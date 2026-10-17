@@ -10,7 +10,6 @@ class CanchitasDbHelper(context: Context) :
     override fun onConfigure(db: SQLiteDatabase) {
         super.onConfigure(db)
         db.enableWriteAheadLogging()
-        // SQLite ignora las llaves foráneas si no se activan en cada conexión.
         db.setForeignKeyConstraintsEnabled(true)
     }
 
@@ -125,9 +124,8 @@ class CanchitasDbHelper(context: Context) :
             """.trimIndent()
         )
     }
-
+     //borrando datos locales
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Orden inverso a las dependencias. OJO: borra los datos locales.
         db.execSQL("DROP TABLE IF EXISTS ${AsistenciaContrato.TABLA}")
         db.execSQL("DROP TABLE IF EXISTS ${AlumnoContrato.TABLA}")
         db.execSQL("DROP TABLE IF EXISTS ${ClaseContrato.TABLA}")

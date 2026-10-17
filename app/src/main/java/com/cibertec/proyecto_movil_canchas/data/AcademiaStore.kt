@@ -203,7 +203,7 @@ class AcademiaStore(context: Context) {
             db.endTransaction()
         }
 
-        // Subir inmediatamente a Firebase Firestore (con tiempo máximo de espera)
+        // Subir inmediatamente a Firebase Firestore
         if (exitoLocal) {
             val guardadoFirestore = esperarFirebase(20, false) {
                 FirebaseManager.guardarAsistencias(idClase, alumnos, marcarCompletada)
@@ -235,10 +235,10 @@ class AcademiaStore(context: Context) {
     }
 
     fun sincronizarConWeb(): Result<Int> = runCatching {
-        // 1. Subir pendientes a la nube (Firestore / Azure)
+        // 1. Subir pendientes a la nube
         subirPendientesAAzure()
 
-        // 2. Intentar descargar desde Azure primero (para capturar lo nuevo creado en la Web)
+        // 2. Intentar descargar desde Azure primero
         var obtenidoDeAzure = false
         var clasesRemotas: List<ClaseDTO> = emptyList()
         var usuariosRemotos: List<UsuarioDTO> = emptyList()
@@ -259,7 +259,7 @@ class AcademiaStore(context: Context) {
             }
         }
 
-        // 3. Si se obtuvo de Azure, replicar a Firestore en lotes (sin esperar confirmación)
+        // 3. if Azure == true replicar a Firestore en lotes
         if (obtenidoDeAzure) {
             runCatching { FirebaseManager.replicarAlumnosYClases(alumnosRemotos, clasesRemotas) }
         } else {
@@ -499,7 +499,7 @@ class AcademiaStore(context: Context) {
             )
         }
 
-        // 3. Intento secundario hacia Azure (si estuviera disponible)
+        // 3. Intento secundario hacia Azure if disponibilidad == true
         runCatching {
             val api = RetrofitClient.api
             val asistenciasRemotas = runCatching {
@@ -553,10 +553,7 @@ class AcademiaStore(context: Context) {
             }
         }
     }
-    // Espera a Firebase con un tiempo máximo. Sin red, Firestore no confirma las
-    // escrituras y un runBlocking sin límite dejaría el hilo colgado para siempre.
-    // Si se agota el tiempo devuelve valorPorDefecto (la escritura sigue en cola
-    // dentro de Firestore y se enviará cuando vuelva la red).
+    // Espera a Firebase con un tiempo máximo.
     private fun <T> esperarFirebase(segundos: Long, valorPorDefecto: T, bloque: suspend () -> T): T =
         runCatching {
             kotlinx.coroutines.runBlocking {

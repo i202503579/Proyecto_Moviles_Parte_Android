@@ -57,7 +57,6 @@ class ReservaAdapter(
                 )
                 binding.textViewEstado.text = reserva.estado
 
-                // RN08: la etiqueta de balón solo se muestra si la reserva es institucional.
                 binding.chipBalon.text = when(reserva.prestamoEstado){
                     null -> binding.root.context.getString(R.string.chip_balon)
                     "Pendiente" -> binding.root.context.getString(R.string.chip_balon_prestado)
