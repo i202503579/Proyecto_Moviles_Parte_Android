@@ -9,6 +9,7 @@ class CanchitasDbHelper(context: Context) :
 
     override fun onConfigure(db: SQLiteDatabase) {
         super.onConfigure(db)
+        db.enableWriteAheadLogging()
         // SQLite ignora las llaves foráneas si no se activan en cada conexión.
         db.setForeignKeyConstraintsEnabled(true)
     }

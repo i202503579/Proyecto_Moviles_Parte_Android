@@ -107,77 +107,60 @@ class SyncRepository(context: Context) {
     // ==========================================
     suspend fun sincronizarClientes() {
         try {
+            // 1. Primero la red (puede suspender). Todavía no hay transacción abierta.
             val clientesApi = RetrofitClient.apiService.getClientes()
-            val db = dbHelper.writableDatabase
 
-            db.beginTransaction()
-            try {
-                for (c in clientesApi) {
-                    val docLimpio = c.numeroDocumento.trim()
-                    val valores = ContentValues().apply {
-                        put(ClienteContrato.COLUMNA_ID_SERVIDOR, c.idCliente)
-                        put(ClienteContrato.COLUMNA_NOMBRE, c.nombreCliente)
-                        put(ClienteContrato.COLUMNA_DOCUMENTO, docLimpio)
-                        put(ClienteContrato.COLUMNA_TELEFONO, c.telefonoCliente)
-                        put(ClienteContrato.COLUMNA_TIPO, c.tipoCliente)
-                        put(ClienteContrato.COLUMNA_SYNCED, 1)
-                    }
-                    val actualizados = db.update(
-                        ClienteContrato.TABLA,
-                        valores,
-                        "${ClienteContrato.COLUMNA_DOCUMENTO} = ?",
-                        arrayOf(docLimpio)
-                    )
-                    if (actualizados == 0) {
-                        db.insertWithOnConflict(
-                            ClienteContrato.TABLA,
-                            null,
-                            valores,
-                            SQLiteDatabase.CONFLICT_REPLACE
-                        )
-                    }
+            // 2. Transacción solo con SQLite, en una función NO suspend.
+            guardarClientesLocal(clientesApi)
 
-                    // Replicar en tiempo real a Firebase Cloud Firestore
-                    FirebaseManager.sincronizarCliente(c)
-                }
-                db.setTransactionSuccessful()
-            } finally {
-                db.endTransaction()
-            }
+            // 3. Replicar a Firestore fuera de la transacción y sin esperar confirmación.
+            runCatching { FirebaseManager.replicarClientes(clientesApi) }
         } catch (e: Exception) {
             Log.w(TAG, "Error sincronizando clientes desde Azure: ${e.message}")
             // Si Azure no responde, descargar clientes desde Cloud Firestore
             try {
                 val clientesFire = FirebaseManager.obtenerClientes()
-                val db = dbHelper.writableDatabase
-                for (c in clientesFire) {
-                    val docLimpio = c.numeroDocumento.trim()
-                    val valores = ContentValues().apply {
-                        put(ClienteContrato.COLUMNA_ID_SERVIDOR, c.idCliente)
-                        put(ClienteContrato.COLUMNA_NOMBRE, c.nombreCliente)
-                        put(ClienteContrato.COLUMNA_DOCUMENTO, docLimpio)
-                        put(ClienteContrato.COLUMNA_TELEFONO, c.telefonoCliente)
-                        put(ClienteContrato.COLUMNA_TIPO, c.tipoCliente)
-                        put(ClienteContrato.COLUMNA_SYNCED, 1)
-                    }
-                    val actualizados = db.update(
-                        ClienteContrato.TABLA,
-                        valores,
-                        "${ClienteContrato.COLUMNA_DOCUMENTO} = ?",
-                        arrayOf(docLimpio)
-                    )
-                    if (actualizados == 0) {
-                        db.insertWithOnConflict(
-                            ClienteContrato.TABLA,
-                            null,
-                            valores,
-                            SQLiteDatabase.CONFLICT_REPLACE
-                        )
-                    }
-                }
+                guardarClientesLocal(clientesFire)
             } catch (fe: Exception) {
                 Log.w(TAG, "Error sincronizando clientes desde Firestore: ${fe.message}")
             }
+        }
+    }
+
+    // IMPORTANTE: esta función NO es suspend a propósito. Entre beginTransaction()
+    // y endTransaction() no debe haber nada que suspenda (red, await, withContext).
+    private fun guardarClientesLocal(clientes: List<ClienteDTO>) {
+        val db = dbHelper.writableDatabase
+        db.beginTransaction()
+        try {
+            for (c in clientes) {
+                val docLimpio = c.numeroDocumento.trim()
+                val valores = ContentValues().apply {
+                    put(ClienteContrato.COLUMNA_ID_SERVIDOR, c.idCliente)
+                    put(ClienteContrato.COLUMNA_NOMBRE, c.nombreCliente)
+                    put(ClienteContrato.COLUMNA_DOCUMENTO, docLimpio)
+                    put(ClienteContrato.COLUMNA_TELEFONO, c.telefonoCliente)
+                    put(ClienteContrato.COLUMNA_TIPO, c.tipoCliente)
+                    put(ClienteContrato.COLUMNA_SYNCED, 1)
+                }
+                val actualizados = db.update(
+                    ClienteContrato.TABLA,
+                    valores,
+                    "${ClienteContrato.COLUMNA_DOCUMENTO} = ?",
+                    arrayOf(docLimpio)
+                )
+                if (actualizados == 0) {
+                    db.insertWithOnConflict(
+                        ClienteContrato.TABLA,
+                        null,
+                        valores,
+                        SQLiteDatabase.CONFLICT_REPLACE
+                    )
+                }
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
         }
     }
 
@@ -190,20 +173,22 @@ class SyncRepository(context: Context) {
 
         // 1. Buscar en SQLite local
         val local = clienteStore.buscarPorDocumento(docLimpio)
-        if (local != null) {
-            try {
-                FirebaseManager.sincronizarCliente(
-                    ClienteDTO(
-                        idCliente = local.id,
-                        nombreCliente = local.nombre,
-                        numeroDocumento = local.numeroDocumento,
-                        telefonoCliente = local.telefono,
-                        tipoCliente = local.tipoCliente
+            if (local != null) {
+                runCatching {
+                    FirebaseManager.replicarClientes(
+                        listOf(
+                            ClienteDTO(
+                                idCliente = local.id,
+                                nombreCliente = local.nombre,
+                                numeroDocumento = local.numeroDocumento,
+                                telefonoCliente = local.telefono,
+                                tipoCliente = local.tipoCliente
+                            )
+                        )
                     )
-                )
-            } catch (_: Exception) {}
-            return local
-        }
+                }
+                return local
+            }
 
         // 2. Buscar en Azure
         val remotoAzure = try {
@@ -234,7 +219,7 @@ class SyncRepository(context: Context) {
             val idFinal = if (idNuevo > 0) idNuevo.toInt() else remotoAzure.idCliente
 
             // Replicar en Firestore
-            FirebaseManager.sincronizarCliente(remotoAzure)
+            runCatching { FirebaseManager.replicarClientes(listOf(remotoAzure)) }
 
             return Cliente(
                 id = idFinal,
@@ -511,7 +496,7 @@ class SyncRepository(context: Context) {
             FirebaseManager.db.collection("reservas")
                 .document(idReservaLocal.toString())
                 .set(datosFirestore, SetOptions.merge())
-                .await()
+                .addOnFailureListener { Log.w(TAG, "Aviso Firestore reserva: ${it.message}") }
 
             if (cliente.numeroDocumento.isNotBlank()) {
                 val clienteFirestore = hashMapOf(

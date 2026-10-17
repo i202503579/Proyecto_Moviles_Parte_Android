@@ -203,37 +203,34 @@ class AcademiaStore(context: Context) {
             db.endTransaction()
         }
 
-        // Subir inmediatamente a Firebase Firestore
+        // Subir inmediatamente a Firebase Firestore (con tiempo máximo de espera)
         if (exitoLocal) {
-            runCatching {
-                kotlinx.coroutines.runBlocking {
-                    val guardadoFirestore = FirebaseManager.guardarAsistencias(idClase, alumnos, marcarCompletada)
-                    if (guardadoFirestore) {
-                        val cv = ContentValues().apply {
-                            put(AsistenciaContrato.COLUMNA_SYNCED, 1)
-                        }
-                        db.update(
-                            AsistenciaContrato.TABLA,
-                            cv,
-                            "${AsistenciaContrato.COLUMNA_ID_CLASE} = ?",
-                            arrayOf(idClase.toString())
-                        )
-                        if (marcarCompletada) {
-                            val cvC = ContentValues().apply {
-                                put(ClaseContrato.COLUMNA_SYNCED, 1)
-                            }
-                            db.update(
-                                ClaseContrato.TABLA,
-                                cvC,
-                                "${ClaseContrato.COLUMNA_ID} = ?",
-                                arrayOf(idClase.toString())
-                            )
-                        }
+            val guardadoFirestore = esperarFirebase(20, false) {
+                FirebaseManager.guardarAsistencias(idClase, alumnos, marcarCompletada)
+            }
+            if (guardadoFirestore) {
+                val cv = ContentValues().apply {
+                    put(AsistenciaContrato.COLUMNA_SYNCED, 1)
+                }
+                db.update(
+                    AsistenciaContrato.TABLA,
+                    cv,
+                    "${AsistenciaContrato.COLUMNA_ID_CLASE} = ?",
+                    arrayOf(idClase.toString())
+                )
+                if (marcarCompletada) {
+                    val cvC = ContentValues().apply {
+                        put(ClaseContrato.COLUMNA_SYNCED, 1)
                     }
+                    db.update(
+                        ClaseContrato.TABLA,
+                        cvC,
+                        "${ClaseContrato.COLUMNA_ID} = ?",
+                        arrayOf(idClase.toString())
+                    )
                 }
             }
         }
-
         return exitoLocal
     }
 
@@ -262,39 +259,16 @@ class AcademiaStore(context: Context) {
             }
         }
 
-        // 3. Si se obtuvo de Azure, replicar a Firebase Firestore automáticamente
+        // 3. Si se obtuvo de Azure, replicar a Firestore en lotes (sin esperar confirmación)
         if (obtenidoDeAzure) {
-            runCatching {
-                kotlinx.coroutines.runBlocking {
-                    for (al in alumnosRemotos) {
-                        FirebaseManager.sincronizarAlumno(al)
-                    }
-                    for (cl in clasesRemotas) {
-                        FirebaseManager.sincronizarClase(cl)
-                    }
-                }
-            }
+            runCatching { FirebaseManager.replicarAlumnosYClases(alumnosRemotos, clasesRemotas) }
         } else {
             // Si Azure no responde o está offline, descargar desde Cloud Firestore
-            clasesRemotas = runCatching {
-                kotlinx.coroutines.runBlocking { FirebaseManager.obtenerClases() }
-            }.getOrDefault(emptyList())
-
-            usuariosRemotos = runCatching {
-                kotlinx.coroutines.runBlocking { FirebaseManager.obtenerUsuarios() }
-            }.getOrDefault(emptyList())
-
-            canchasRemotas = runCatching {
-                kotlinx.coroutines.runBlocking { FirebaseManager.obtenerCanchas() }
-            }.getOrDefault(emptyList())
-
-            alumnosRemotos = runCatching {
-                kotlinx.coroutines.runBlocking { FirebaseManager.obtenerAlumnos() }
-            }.getOrDefault(emptyList())
-
-            asistenciasRemotas = runCatching {
-                kotlinx.coroutines.runBlocking { FirebaseManager.obtenerAsistencias() }
-            }.getOrDefault(emptyList())
+            clasesRemotas = esperarFirebase(15, emptyList()) { FirebaseManager.obtenerClases() }
+            usuariosRemotos = esperarFirebase(15, emptyList()) { FirebaseManager.obtenerUsuarios() }
+            canchasRemotas = esperarFirebase(15, emptyList()) { FirebaseManager.obtenerCanchas() }
+            alumnosRemotos = esperarFirebase(15, emptyList()) { FirebaseManager.obtenerAlumnos() }
+            asistenciasRemotas = esperarFirebase(15, emptyList()) { FirebaseManager.obtenerAsistencias() }
         }
 
         val mapaProfesores = usuariosRemotos.associateBy({ it.idUsuario }, { it.nombreUsuario })
@@ -452,28 +426,25 @@ class AcademiaStore(context: Context) {
 
         // 1. Sincronizar asistencias pendientes con Firebase Firestore
         for ((idLocal, _, dto) in pendientesAsist) {
-            val exitoFirestore = runCatching {
-                kotlinx.coroutines.runBlocking {
-                    FirebaseManager.guardarAsistenciaIndividual(
-                        idClase = dto.idClase,
-                        idAlumno = dto.idAlumno,
-                        nombreAlumno = "",
-                        estadoAsistencia = dto.estadoAsistencia
-                    )
-                }
-            }.getOrDefault(false)
-
-            if (exitoFirestore) {
-                val cv = ContentValues().apply {
-                    put(AsistenciaContrato.COLUMNA_SYNCED, 1)
-                }
-                db.update(
-                    AsistenciaContrato.TABLA,
-                    cv,
-                    "${AsistenciaContrato.COLUMNA_ID_LOCAL} = ?",
-                    arrayOf(idLocal.toString())
+            val exitoFirestore = esperarFirebase(15, false) {
+                FirebaseManager.guardarAsistenciaIndividual(
+                    idClase = dto.idClase,
+                    idAlumno = dto.idAlumno,
+                    nombreAlumno = "",
+                    estadoAsistencia = dto.estadoAsistencia
                 )
             }
+            if (!exitoFirestore) break   // sin red: no insistir con el resto
+
+            val cv = ContentValues().apply {
+                put(AsistenciaContrato.COLUMNA_SYNCED, 1)
+            }
+            db.update(
+                AsistenciaContrato.TABLA,
+                cv,
+                "${AsistenciaContrato.COLUMNA_ID_LOCAL} = ?",
+                arrayOf(idLocal.toString())
+            )
         }
 
         // 2. Sincronizar clases pendientes con Firebase Firestore
@@ -512,23 +483,20 @@ class AcademiaStore(context: Context) {
         }
 
         for (claseDto in clasesPendientes) {
-            val exitoFirestore = runCatching {
-                kotlinx.coroutines.runBlocking {
-                    FirebaseManager.actualizarEstadoClase(claseDto.idClase, claseDto.estadoClase)
-                }
-            }.getOrDefault(false)
-
-            if (exitoFirestore) {
-                val cv = ContentValues().apply {
-                    put(ClaseContrato.COLUMNA_SYNCED, 1)
-                }
-                db.update(
-                    ClaseContrato.TABLA,
-                    cv,
-                    "${ClaseContrato.COLUMNA_ID} = ?",
-                    arrayOf(claseDto.idClase.toString())
-                )
+            val exitoFirestore = esperarFirebase(15, false) {
+                FirebaseManager.actualizarEstadoClase(claseDto.idClase, claseDto.estadoClase)
             }
+            if (!exitoFirestore) break   // sin red: no insistir con el resto
+
+            val cv = ContentValues().apply {
+                put(ClaseContrato.COLUMNA_SYNCED, 1)
+            }
+            db.update(
+                ClaseContrato.TABLA,
+                cv,
+                "${ClaseContrato.COLUMNA_ID} = ?",
+                arrayOf(claseDto.idClase.toString())
+            )
         }
 
         // 3. Intento secundario hacia Azure (si estuviera disponible)
@@ -561,20 +529,38 @@ class AcademiaStore(context: Context) {
                 }
             }
 
-            for (claseDto in clasesPendientes) {
-                val resp = api.actualizarClase(claseDto).execute()
-                if (resp.isSuccessful) {
-                    val cv = ContentValues().apply {
-                        put(ClaseContrato.COLUMNA_SYNCED, 1)
-                    }
-                    db.update(
-                        ClaseContrato.TABLA,
-                        cv,
-                        "${ClaseContrato.COLUMNA_ID} = ?",
-                        arrayOf(claseDto.idClase.toString())
+            // 1. Sincronizar asistencias pendientes con Firebase Firestore
+            for ((idLocal, _, dto) in pendientesAsist) {
+                val exitoFirestore = esperarFirebase(15, false) {
+                    FirebaseManager.guardarAsistenciaIndividual(
+                        idClase = dto.idClase,
+                        idAlumno = dto.idAlumno,
+                        nombreAlumno = "",
+                        estadoAsistencia = dto.estadoAsistencia
                     )
                 }
+                if (!exitoFirestore) break   // sin red: no insistir con el resto
+
+                val cv = ContentValues().apply {
+                    put(AsistenciaContrato.COLUMNA_SYNCED, 1)
+                }
+                db.update(
+                    AsistenciaContrato.TABLA,
+                    cv,
+                    "${AsistenciaContrato.COLUMNA_ID_LOCAL} = ?",
+                    arrayOf(idLocal.toString())
+                )
             }
         }
     }
+    // Espera a Firebase con un tiempo máximo. Sin red, Firestore no confirma las
+    // escrituras y un runBlocking sin límite dejaría el hilo colgado para siempre.
+    // Si se agota el tiempo devuelve valorPorDefecto (la escritura sigue en cola
+    // dentro de Firestore y se enviará cuando vuelva la red).
+    private fun <T> esperarFirebase(segundos: Long, valorPorDefecto: T, bloque: suspend () -> T): T =
+        runCatching {
+            kotlinx.coroutines.runBlocking {
+                kotlinx.coroutines.withTimeoutOrNull(segundos * 1000L) { bloque() } ?: valorPorDefecto
+            }
+        }.getOrDefault(valorPorDefecto)
 }

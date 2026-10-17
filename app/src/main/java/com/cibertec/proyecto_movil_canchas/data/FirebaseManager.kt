@@ -412,7 +412,67 @@ object FirebaseManager {
             Log.w(TAG, "Aviso sincronizando clase en Firestore: ${e.message}")
         }
     }
-
+    // Replica clientes a Firestore SIN suspender ni esperar al servidor.
+    // Firestore guarda la escritura localmente y la envía cuando hay red.
+    fun replicarClientes(clientes: List<ClienteDTO>) {
+        // Un lote admite máximo 500 operaciones
+        clientes.filter { it.numeroDocumento.isNotBlank() }.chunked(400).forEach { grupo ->
+            val lote = db.batch()
+            for (c in grupo) {
+                val docLimpio = c.numeroDocumento.trim()
+                val datos = hashMapOf(
+                    "idCliente" to c.idCliente,
+                    "nombreCliente" to c.nombreCliente,
+                    "numeroDocumento" to docLimpio,
+                    "telefonoCliente" to (c.telefonoCliente ?: ""),
+                    "tipoCliente" to c.tipoCliente
+                )
+                lote.set(db.collection("clientes").document(docLimpio), datos, SetOptions.merge())
+            }
+            lote.commit().addOnFailureListener {
+                Log.w(TAG, "Aviso replicando clientes en Firestore: ${it.message}")
+            }
+        }
+    }
+    // Replica alumnos y clases a Firestore en lotes, SIN suspender ni esperar al servidor.
+    fun replicarAlumnosYClases(alumnos: List<AlumnoDTO>, clases: List<ClaseDTO>) {
+        alumnos.chunked(400).forEach { grupo ->
+            val lote = db.batch()
+            for (al in grupo) {
+                val datos = hashMapOf(
+                    "idAlumno" to al.idAlumno,
+                    "nombreAlumno" to al.nombreAlumno,
+                    "telefonoApoderado" to (al.telefonoApoderado ?: ""),
+                    "fechaIngreso" to (al.fechaIngreso ?: ""),
+                    "activoAlumno" to al.activoAlumno,
+                    "idUsuario" to al.idUsuario
+                )
+                lote.set(db.collection("alumnos").document(al.idAlumno.toString()), datos, SetOptions.merge())
+            }
+            lote.commit().addOnFailureListener {
+                Log.w(TAG, "Aviso replicando alumnos en Firestore: ${it.message}")
+            }
+        }
+        clases.chunked(400).forEach { grupo ->
+            val lote = db.batch()
+            for (cl in grupo) {
+                val datos = hashMapOf(
+                    "idClase" to cl.idClase,
+                    "idUsuario" to cl.idUsuario,
+                    "idCancha" to cl.idCancha,
+                    "fechaClase" to cl.fechaClase,
+                    "horaInicio" to cl.horaInicio,
+                    "horaFin" to cl.horaFin,
+                    "estadoClase" to cl.estadoClase,
+                    "activoClase" to cl.activoClase
+                )
+                lote.set(db.collection("clases").document(cl.idClase.toString()), datos, SetOptions.merge())
+            }
+            lote.commit().addOnFailureListener {
+                Log.w(TAG, "Aviso replicando clases en Firestore: ${it.message}")
+            }
+        }
+    }
     suspend fun sincronizarCliente(cliente: ClienteDTO) {
         val docLimpio = cliente.numeroDocumento.trim()
         if (docLimpio.isBlank()) return
