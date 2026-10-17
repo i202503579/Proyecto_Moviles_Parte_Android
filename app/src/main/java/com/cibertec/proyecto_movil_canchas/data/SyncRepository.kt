@@ -14,9 +14,11 @@ import com.cibertec.proyecto_movil_canchas.network.ClienteDTO
 import com.cibertec.proyecto_movil_canchas.network.PrestamoBalonDTO
 import com.cibertec.proyecto_movil_canchas.network.ReservaDTO
 import com.cibertec.proyecto_movil_canchas.network.RetrofitClient
+import com.google.firebase.firestore.SetOptions
 import java.text.SimpleDateFormat
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.tasks.await
 import java.util.Date
 import java.util.Locale
 
@@ -30,9 +32,46 @@ class SyncRepository(context: Context) {
     private val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
 
     // ==========================================
-    // 1. SINCRONIZAR CANCHAS DESDE AZURE
+    // 1. SINCRONIZAR CANCHAS (FIRESTORE / AZURE)
     // ==========================================
     suspend fun sincronizarCanchas(): List<Cancha> {
+        // 1. Intentar desde Cloud Firestore
+        try {
+            val canchasSnapshot = FirebaseManager.db.collection("canchas").get().await()
+            if (!canchasSnapshot.isEmpty) {
+                val db = dbHelper.writableDatabase
+                db.beginTransaction()
+                try {
+                    for (doc in canchasSnapshot.documents) {
+                        val id = (doc.getLong("idCancha") ?: 0L).toInt()
+                        val nombre = doc.getString("nombreCancha").orEmpty()
+                        val precio = doc.getDouble("precioAlquiler") ?: 0.0
+                        val activo = doc.getBoolean("activoCancha") ?: true
+
+                        val valores = ContentValues().apply {
+                            put(CanchaContrato.COLUMNA_ID, id)
+                            put(CanchaContrato.COLUMNA_NOMBRE, nombre)
+                            put(CanchaContrato.COLUMNA_PRECIO, precio)
+                            put(CanchaContrato.COLUMNA_ACTIVO, if (activo) 1 else 0)
+                        }
+                        db.insertWithOnConflict(
+                            CanchaContrato.TABLA,
+                            null,
+                            valores,
+                            SQLiteDatabase.CONFLICT_REPLACE
+                        )
+                    }
+                    db.setTransactionSuccessful()
+                } finally {
+                    db.endTransaction()
+                }
+                return canchaStore.obtenerActivas()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Aviso Firestore canchas: ${e.message}")
+        }
+
+        // 2. Respaldo Azure si no se pudo con Firestore
         try {
             val canchasApi = RetrofitClient.apiService.getCanchas()
             val db = dbHelper.writableDatabase
@@ -64,7 +103,7 @@ class SyncRepository(context: Context) {
     }
 
     // ==========================================
-    // 2. SINCRONIZAR CLIENTES DESDE AZURE
+    // 2. SINCRONIZAR CLIENTES (AZURE + FIREBASE)
     // ==========================================
     suspend fun sincronizarClientes() {
         try {
@@ -74,10 +113,11 @@ class SyncRepository(context: Context) {
             db.beginTransaction()
             try {
                 for (c in clientesApi) {
+                    val docLimpio = c.numeroDocumento.trim()
                     val valores = ContentValues().apply {
                         put(ClienteContrato.COLUMNA_ID_SERVIDOR, c.idCliente)
                         put(ClienteContrato.COLUMNA_NOMBRE, c.nombreCliente)
-                        put(ClienteContrato.COLUMNA_DOCUMENTO, c.numeroDocumento)
+                        put(ClienteContrato.COLUMNA_DOCUMENTO, docLimpio)
                         put(ClienteContrato.COLUMNA_TELEFONO, c.telefonoCliente)
                         put(ClienteContrato.COLUMNA_TIPO, c.tipoCliente)
                         put(ClienteContrato.COLUMNA_SYNCED, 1)
@@ -86,54 +126,156 @@ class SyncRepository(context: Context) {
                         ClienteContrato.TABLA,
                         valores,
                         "${ClienteContrato.COLUMNA_DOCUMENTO} = ?",
-                        arrayOf(c.numeroDocumento)
+                        arrayOf(docLimpio)
                     )
                     if (actualizados == 0) {
-                        db.insert(ClienteContrato.TABLA, null, valores)
+                        db.insertWithOnConflict(
+                            ClienteContrato.TABLA,
+                            null,
+                            valores,
+                            SQLiteDatabase.CONFLICT_REPLACE
+                        )
                     }
+
+                    // Replicar en tiempo real a Firebase Cloud Firestore
+                    FirebaseManager.sincronizarCliente(c)
                 }
                 db.setTransactionSuccessful()
             } finally {
                 db.endTransaction()
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Error sincronizando clientes: ${e.message}")
+            Log.w(TAG, "Error sincronizando clientes desde Azure: ${e.message}")
+            // Si Azure no responde, descargar clientes desde Cloud Firestore
+            try {
+                val clientesFire = FirebaseManager.obtenerClientes()
+                val db = dbHelper.writableDatabase
+                for (c in clientesFire) {
+                    val docLimpio = c.numeroDocumento.trim()
+                    val valores = ContentValues().apply {
+                        put(ClienteContrato.COLUMNA_ID_SERVIDOR, c.idCliente)
+                        put(ClienteContrato.COLUMNA_NOMBRE, c.nombreCliente)
+                        put(ClienteContrato.COLUMNA_DOCUMENTO, docLimpio)
+                        put(ClienteContrato.COLUMNA_TELEFONO, c.telefonoCliente)
+                        put(ClienteContrato.COLUMNA_TIPO, c.tipoCliente)
+                        put(ClienteContrato.COLUMNA_SYNCED, 1)
+                    }
+                    val actualizados = db.update(
+                        ClienteContrato.TABLA,
+                        valores,
+                        "${ClienteContrato.COLUMNA_DOCUMENTO} = ?",
+                        arrayOf(docLimpio)
+                    )
+                    if (actualizados == 0) {
+                        db.insertWithOnConflict(
+                            ClienteContrato.TABLA,
+                            null,
+                            valores,
+                            SQLiteDatabase.CONFLICT_REPLACE
+                        )
+                    }
+                }
+            } catch (fe: Exception) {
+                Log.w(TAG, "Error sincronizando clientes desde Firestore: ${fe.message}")
+            }
         }
     }
 
     // ==========================================
-    // 3. BUSCAR CLIENTE (LOCAL + AZURE)
+    // 3. BUSCAR CLIENTE (LOCAL + AZURE + FIREBASE)
     // ==========================================
     suspend fun buscarCliente(documento: String): Cliente? {
-        val local = clienteStore.buscarPorDocumento(documento)
-        if (local != null) return local
+        val docLimpio = documento.trim()
+        if (docLimpio.isBlank()) return null
 
-        return try {
+        // 1. Buscar en SQLite local
+        val local = clienteStore.buscarPorDocumento(docLimpio)
+        if (local != null) {
+            try {
+                FirebaseManager.sincronizarCliente(
+                    ClienteDTO(
+                        idCliente = local.id,
+                        nombreCliente = local.nombre,
+                        numeroDocumento = local.numeroDocumento,
+                        telefonoCliente = local.telefono,
+                        tipoCliente = local.tipoCliente
+                    )
+                )
+            } catch (_: Exception) {}
+            return local
+        }
+
+        // 2. Buscar en Azure
+        val remotoAzure = try {
             val lista = RetrofitClient.apiService.getClientes()
-            val remoto = lista.find { it.numeroDocumento == documento } ?: return null
-
-            val db = dbHelper.writableDatabase
-            val valores = ContentValues().apply {
-                put(ClienteContrato.COLUMNA_ID_SERVIDOR, remoto.idCliente)
-                put(ClienteContrato.COLUMNA_NOMBRE, remoto.nombreCliente)
-                put(ClienteContrato.COLUMNA_DOCUMENTO, remoto.numeroDocumento)
-                put(ClienteContrato.COLUMNA_TELEFONO, remoto.telefonoCliente)
-                put(ClienteContrato.COLUMNA_TIPO, remoto.tipoCliente)
-                put(ClienteContrato.COLUMNA_SYNCED, 1)
-            }
-            val idNuevo = db.insert(ClienteContrato.TABLA, null, valores)
-
-            Cliente(
-                id = idNuevo.toInt(),
-                nombre = remoto.nombreCliente,
-                numeroDocumento = remoto.numeroDocumento,
-                telefono = remoto.telefonoCliente,
-                tipoCliente = remoto.tipoCliente
-            )
+            lista.find { it.numeroDocumento.trim().equals(docLimpio, ignoreCase = true) }
         } catch (e: Exception) {
-            Log.w(TAG, "Error buscando cliente en Azure: ${e.message}")
+            Log.w(TAG, "Aviso buscando cliente en Azure: ${e.message}")
             null
         }
+
+        if (remotoAzure != null) {
+            val db = dbHelper.writableDatabase
+            val valores = ContentValues().apply {
+                put(ClienteContrato.COLUMNA_ID_SERVIDOR, remotoAzure.idCliente)
+                put(ClienteContrato.COLUMNA_NOMBRE, remotoAzure.nombreCliente)
+                put(ClienteContrato.COLUMNA_DOCUMENTO, remotoAzure.numeroDocumento.trim())
+                put(ClienteContrato.COLUMNA_TELEFONO, remotoAzure.telefonoCliente)
+                put(ClienteContrato.COLUMNA_TIPO, remotoAzure.tipoCliente)
+                put(ClienteContrato.COLUMNA_SYNCED, 1)
+            }
+            val idNuevo = db.insertWithOnConflict(
+                ClienteContrato.TABLA,
+                null,
+                valores,
+                SQLiteDatabase.CONFLICT_REPLACE
+            )
+
+            val idFinal = if (idNuevo > 0) idNuevo.toInt() else remotoAzure.idCliente
+
+            // Replicar en Firestore
+            FirebaseManager.sincronizarCliente(remotoAzure)
+
+            return Cliente(
+                id = idFinal,
+                nombre = remotoAzure.nombreCliente,
+                numeroDocumento = remotoAzure.numeroDocumento.trim(),
+                telefono = remotoAzure.telefonoCliente,
+                tipoCliente = remotoAzure.tipoCliente
+            )
+        }
+
+        // 3. Si no está en Azure o falló, buscar en Cloud Firestore
+        val remotoFire = FirebaseManager.buscarClienteEnFirestore(docLimpio)
+        if (remotoFire != null) {
+            val db = dbHelper.writableDatabase
+            val valores = ContentValues().apply {
+                put(ClienteContrato.COLUMNA_ID_SERVIDOR, remotoFire.idCliente)
+                put(ClienteContrato.COLUMNA_NOMBRE, remotoFire.nombreCliente)
+                put(ClienteContrato.COLUMNA_DOCUMENTO, remotoFire.numeroDocumento.trim())
+                put(ClienteContrato.COLUMNA_TELEFONO, remotoFire.telefonoCliente)
+                put(ClienteContrato.COLUMNA_TIPO, remotoFire.tipoCliente)
+                put(ClienteContrato.COLUMNA_SYNCED, 1)
+            }
+            val idNuevo = db.insertWithOnConflict(
+                ClienteContrato.TABLA,
+                null,
+                valores,
+                SQLiteDatabase.CONFLICT_REPLACE
+            )
+
+            val idFinal = if (idNuevo > 0) idNuevo.toInt() else remotoFire.idCliente
+
+            return Cliente(
+                id = idFinal,
+                nombre = remotoFire.nombreCliente,
+                numeroDocumento = remotoFire.numeroDocumento.trim(),
+                telefono = remotoFire.telefonoCliente,
+                tipoCliente = remotoFire.tipoCliente
+            )
+        }
+
+        return null
     }
 
     // ==========================================
@@ -165,7 +307,12 @@ class SyncRepository(context: Context) {
                 if (!resp.isSuccessful && esFalloReal(resp, "DELETE reserva $idServidor")) return false
             }
 
-            // 3. Borrar local (préstamo y reserva)
+            // 3. Borrar de Cloud Firestore
+            try {
+                FirebaseManager.db.collection("reservas").document(idReservaLocal.toString()).delete()
+            } catch (_: Exception) {}
+
+            // 4. Borrar local (préstamo y reserva)
             reservaStore.eliminacionFisicamenteLocal(idReservaLocal)
         } catch (e: Exception) {
             Log.e(TAG, "Error eliminando reserva globalmente: ${e.message}", e)
@@ -187,68 +334,124 @@ class SyncRepository(context: Context) {
             sincronizarCanchas()
             sincronizarClientes()
 
-            val reservasApi = RetrofitClient.apiService.getReservas()
-            val db = dbHelper.writableDatabase
-
-            db.beginTransaction()
+            // 1. Sincronizar desde Cloud Firestore en tiempo real
             try {
-                //val ocultas = obtenerReservasOcultas(db)
-                for (r in reservasApi) {
-                  //  if (r.idReserva in ocultas) continue
-                    val inicioMillis = try { isoFormat.parse(r.horaInicio)?.time ?: 0L } catch (_: Exception) { 0L }
-                    val finMillis = try { isoFormat.parse(r.horaFin)?.time ?: 0L } catch (_: Exception) { 0L }
+                val snapshot = FirebaseManager.db.collection("reservas").get().await()
+                if (!snapshot.isEmpty) {
+                    val db = dbHelper.writableDatabase
+                    db.beginTransaction()
+                    try {
+                        for (doc in snapshot.documents) {
+                            val id = (doc.getLong("idReserva") ?: 0L).toInt()
+                            if (id <= 0) continue
+                            val idCancha = (doc.getLong("idCancha") ?: 1L).toInt()
+                            val nombreCli = doc.getString("nombreCliente").orEmpty()
+                            val docCli = doc.getString("numeroDocumento").orEmpty()
+                            val telCli = doc.getString("telefonoCliente").orEmpty()
+                            val tipoCli = doc.getString("tipoCliente") ?: "Particular"
+                            val hIni = doc.getLong("horaInicioMillis") ?: (try { isoFormat.parse(doc.getString("horaInicio").orEmpty())?.time ?: 0L } catch (_: Exception) { 0L })
+                            val hFin = doc.getLong("horaFinMillis") ?: (try { isoFormat.parse(doc.getString("horaFin").orEmpty())?.time ?: 0L } catch (_: Exception) { 0L })
+                            val precio = doc.getDouble("precioReserva") ?: 0.0
+                            val monto = doc.getDouble("montoRecibido") ?: 0.0
+                            val estado = doc.getString("estadoReserva") ?: "Pendiente"
+                            val idUsuario = (doc.getLong("idUsuario") ?: 1L).toInt()
+                            val idClienteLocal = obtenerOCrearCliente(nombreCli, docCli, telCli, tipoCli)
 
-                    val idClienteLocal = resolverClienteLocalPorServidor(db, r.idCliente) ?: continue
-
-                    val valores = ContentValues().apply {
-                        put(ReservaContrato.COLUMNA_ID_SERVIDOR, r.idReserva)
-                        put(ReservaContrato.COLUMNA_ID_CANCHA, r.idCancha)
-                        put(ReservaContrato.COLUMNA_ID_CLIENTE, idClienteLocal)
-                        put(ReservaContrato.COLUMNA_ID_USUARIO, r.idUsuario)
-                        put(ReservaContrato.COLUMNA_HORA_INICIO, inicioMillis)
-                        put(ReservaContrato.COLUMNA_HORA_FIN, finMillis)
-                        put(ReservaContrato.COLUMNA_PRECIO, r.precioReserva)
-                        put(ReservaContrato.COLUMNA_MONTO_RECIBIDO, r.montoRecibido)
-                        put(ReservaContrato.COLUMNA_ESTADO, r.estadoReserva)
-                        put(ReservaContrato.COLUMNA_SYNCED, 1)
-                    }
-
-                    // 1. Intentar actualizar por id_servidor
-                    var filas = db.update(
-                        ReservaContrato.TABLA_RESERVAS,
-                        valores,
-                        "${ReservaContrato.COLUMNA_ID_SERVIDOR} = ?",
-                        arrayOf(r.idReserva.toString())
-                    )
-
-                    // 2. Si no existía por id_servidor, vincular a reserva local que tenga la misma cancha y hora de inicio
-                    if (filas == 0) {
-                        filas = db.update(
-                            ReservaContrato.TABLA_RESERVAS,
-                            valores,
-                            "${ReservaContrato.COLUMNA_ID_CANCHA} = ? AND ABS(${ReservaContrato.COLUMNA_HORA_INICIO} - ?) < 60000",
-                            arrayOf(r.idCancha.toString(), inicioMillis.toString())
-                        )
-                    }
-
-                    // 3. Solo si no existe ni por servidor ni por horario local, insertar
-                    if (filas == 0) {
-                        db.insert(ReservaContrato.TABLA_RESERVAS, null, valores)
+                            val valores = ContentValues().apply {
+                                put(ReservaContrato.COLUMNA_ID, id)
+                                put(ReservaContrato.COLUMNA_ID_SERVIDOR, id)
+                                put(ReservaContrato.COLUMNA_ID_CANCHA, idCancha)
+                                put(ReservaContrato.COLUMNA_ID_CLIENTE, idClienteLocal)
+                                put(ReservaContrato.COLUMNA_ID_USUARIO, idUsuario)
+                                put(ReservaContrato.COLUMNA_HORA_INICIO, hIni)
+                                put(ReservaContrato.COLUMNA_HORA_FIN, hFin)
+                                put(ReservaContrato.COLUMNA_PRECIO, precio)
+                                put(ReservaContrato.COLUMNA_MONTO_RECIBIDO, monto)
+                                put(ReservaContrato.COLUMNA_ESTADO, estado)
+                                put(ReservaContrato.COLUMNA_SYNCED, 1)
+                            }
+                            db.insertWithOnConflict(
+                                ReservaContrato.TABLA_RESERVAS,
+                                null,
+                                valores,
+                                SQLiteDatabase.CONFLICT_REPLACE
+                            )
+                        }
+                        db.setTransactionSuccessful()
+                    } finally {
+                        db.endTransaction()
                     }
                 }
-                db.setTransactionSuccessful()
-            } finally {
-                db.endTransaction()
-            }
-            try {
-                sincronizarPrestamosPendientes()
-                sincronizarPrestamosDesdeAzure()
             } catch (e: Exception) {
-                Log.w(TAG, "Error sincronizando préstamos: ${e.message}")
+                Log.w(TAG, "Aviso sincronizando reservas desde Firestore: ${e.message}")
             }
+
+            // 2. Sincronizar desde Azure (respaldo)
+            try {
+                val reservasApi = RetrofitClient.apiService.getReservas()
+                val db = dbHelper.writableDatabase
+
+                db.beginTransaction()
+                try {
+                    for (r in reservasApi) {
+                        val inicioMillis = try { isoFormat.parse(r.horaInicio)?.time ?: 0L } catch (_: Exception) { 0L }
+                        val finMillis = try { isoFormat.parse(r.horaFin)?.time ?: 0L } catch (_: Exception) { 0L }
+
+                        val idClienteLocal = resolverClienteLocalPorServidor(db, r.idCliente) ?: continue
+
+                        val valores = ContentValues().apply {
+                            put(ReservaContrato.COLUMNA_ID_SERVIDOR, r.idReserva)
+                            put(ReservaContrato.COLUMNA_ID_CANCHA, r.idCancha)
+                            put(ReservaContrato.COLUMNA_ID_CLIENTE, idClienteLocal)
+                            put(ReservaContrato.COLUMNA_ID_USUARIO, r.idUsuario)
+                            put(ReservaContrato.COLUMNA_HORA_INICIO, inicioMillis)
+                            put(ReservaContrato.COLUMNA_HORA_FIN, finMillis)
+                            put(ReservaContrato.COLUMNA_PRECIO, r.precioReserva)
+                            put(ReservaContrato.COLUMNA_MONTO_RECIBIDO, r.montoRecibido)
+                            put(ReservaContrato.COLUMNA_ESTADO, r.estadoReserva)
+                            put(ReservaContrato.COLUMNA_SYNCED, 1)
+                        }
+
+                        // 1. Intentar actualizar por id_servidor
+                        var filas = db.update(
+                            ReservaContrato.TABLA_RESERVAS,
+                            valores,
+                            "${ReservaContrato.COLUMNA_ID_SERVIDOR} = ?",
+                            arrayOf(r.idReserva.toString())
+                        )
+
+                        // 2. Si no existía por id_servidor, vincular a reserva local que tenga la misma cancha y hora de inicio
+                        if (filas == 0) {
+                            filas = db.update(
+                                ReservaContrato.TABLA_RESERVAS,
+                                valores,
+                                "${ReservaContrato.COLUMNA_ID_CANCHA} = ? AND ABS(${ReservaContrato.COLUMNA_HORA_INICIO} - ?) < 60000",
+                                arrayOf(r.idCancha.toString(), inicioMillis.toString())
+                            )
+                        }
+
+                        // 3. Solo si no existe ni por servidor ni por horario local, insertar
+                        if (filas == 0) {
+                            db.insert(ReservaContrato.TABLA_RESERVAS, null, valores)
+                        }
+                    }
+                    db.setTransactionSuccessful()
+                } finally {
+                    db.endTransaction()
+                }
+                try {
+                    sincronizarPrestamosPendientes()
+                    sincronizarPrestamosDesdeAzure()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error sincronizando préstamos: ${e.message}")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Aviso sincronizando reservas desde Azure: ${e.message}")
+            }
+
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error sincronizando reservas desde Azure: ${e.message}", e)
+            Log.e(TAG, "Error sincronizando reservas: ${e.message}", e)
             false
         }
     }
@@ -281,7 +484,54 @@ class SyncRepository(context: Context) {
         val horaFinMillis = horaInicioMillis + (duracionHoras * 3_600_000L)
         val precioTotal = cancha.precioAlquiler * duracionHoras
 
-        var enviadaAzure = false
+        var enviadaServidor = false
+
+        // 1. Guardar en Cloud Firestore en tiempo real
+        try {
+            val datosFirestore = hashMapOf(
+                "idReserva" to idReservaLocal.toInt(),
+                "idCancha" to cancha.id,
+                "nombreCancha" to cancha.nombre,
+                "idCliente" to cliente.id,
+                "nombreCliente" to cliente.nombre,
+                "numeroDocumento" to cliente.numeroDocumento,
+                "telefonoCliente" to (cliente.telefono ?: ""),
+                "tipoCliente" to cliente.tipoCliente,
+                "horaInicio" to isoFormat.format(Date(horaInicioMillis)),
+                "horaFin" to isoFormat.format(Date(horaFinMillis)),
+                "horaInicioMillis" to horaInicioMillis,
+                "horaFinMillis" to horaFinMillis,
+                "precioReserva" to precioTotal,
+                "montoRecibido" to 0.0,
+                "saldo" to precioTotal,
+                "estadoReserva" to "Pendiente",
+                "idUsuario" to 1,
+                "prestamoBalon" to 0
+            )
+            FirebaseManager.db.collection("reservas")
+                .document(idReservaLocal.toString())
+                .set(datosFirestore, SetOptions.merge())
+                .await()
+
+            if (cliente.numeroDocumento.isNotBlank()) {
+                val clienteFirestore = hashMapOf(
+                    "idCliente" to (if (cliente.id > 0) cliente.id else idReservaLocal.toInt()),
+                    "nombreCliente" to cliente.nombre,
+                    "numeroDocumento" to cliente.numeroDocumento,
+                    "telefonoCliente" to (cliente.telefono ?: ""),
+                    "tipoCliente" to cliente.tipoCliente
+                )
+                FirebaseManager.db.collection("clientes")
+                    .document(cliente.numeroDocumento)
+                    .set(clienteFirestore, SetOptions.merge())
+            }
+
+            Log.d(TAG, "Reserva #$idReservaLocal guardada en Firestore en tiempo real.")
+        } catch (e: Exception) {
+            Log.w(TAG, "Aviso Firestore reserva: ${e.message}")
+        }
+
+        // 2. Respaldo a Azure
         try {
             val idClienteServidor = asegurarClienteEnServidor(cliente)
 
@@ -305,24 +555,22 @@ class SyncRepository(context: Context) {
 
                 if (idAsignado != null && idAsignado > 0) {
                     marcarReservaSincronizada(idReservaLocal, idAsignado)
-                    enviadaAzure = true
-                } else {
-                    Log.e(TAG, "Azure creó la reserva, pero no devolvió un IdReserva válido")
-                    marcarReservaSincronizada(idReservaLocal, null)
+                    enviadaServidor = true
+                    try {
+                        FirebaseManager.db.collection("reservas")
+                            .document(idReservaLocal.toString())
+                            .update("idServidorAzure", idAsignado)
+                    } catch (_: Exception) {}
+                    Log.i(TAG, "Reserva local $idReservaLocal guardada con éxito en Azure con ID $idAsignado")
                 }
             } else {
-                Log.e(
-                    TAG,
-                    "Error enviando reserva: HTTP ${resp.code()} - ${resp.errorBody()?.string()}"
-                )
-                marcarReservaSincronizada(idReservaLocal, null)
+                Log.e(TAG, "Error Azure postReserva: HTTP ${resp.code()} - ${resp.errorBody()?.string()}")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error enviando reserva a Azure: ${e.message}", e)
-            enviadaAzure = false
+            Log.w(TAG, "Aviso Azure reserva: ${e.message}")
         }
 
-        return Pair(resultadoLocal, enviadaAzure)
+        return Pair(resultadoLocal, enviadaServidor)
     }
 
     // ==========================================
@@ -498,6 +746,21 @@ class SyncRepository(context: Context) {
                 }
             }
 
+            // Actualizar en Cloud Firestore en tiempo real
+            try {
+                val updateFirestore = hashMapOf<String, Any>(
+                    "estadoReserva" to estado,
+                    "montoRecibido" to montoRecibido,
+                    "saldo" to (precio - montoRecibido)
+                )
+                FirebaseManager.db.collection("reservas")
+                    .document(idReservaLocal.toString())
+                    .set(updateFirestore, SetOptions.merge())
+                Log.d(TAG, "Reserva #$idReservaLocal actualizada en Firestore.")
+            } catch (e: Exception) {
+                Log.w(TAG, "Aviso Firestore update: ${e.message}")
+            }
+
             if (idServidor > 0) {
                 val idClienteServidor = resolverClienteServidorPorLocal(db, idClienteLocal) ?: idClienteLocal
                 val dto = ReservaDTO(
@@ -584,6 +847,20 @@ class SyncRepository(context: Context) {
             "${ReservaContrato.COLUMNA_ID} = ?",
             arrayOf(idLocal.toString())
         )
+    }
+
+    private fun obtenerOCrearCliente(nombre: String, doc: String, tel: String, tipo: String): Int {
+        val db = dbHelper.writableDatabase
+        val existente = ClienteStore.buscarPorDocumento(db, doc)
+        if (existente != null) return existente.id
+        val nuevo = Cliente(
+            nombre = if (nombre.isBlank()) "Cliente $doc" else nombre,
+            numeroDocumento = doc,
+            telefono = tel.ifBlank { null },
+            tipoCliente = if (tipo.isBlank()) "Particular" else tipo
+        )
+        val idInsertado = ClienteStore.insertar(db, nuevo)
+        return if (idInsertado > 0) idInsertado.toInt() else 1
     }
 
     private fun resolverClienteLocalPorServidor(db: SQLiteDatabase, idServidor: Int): Int? {

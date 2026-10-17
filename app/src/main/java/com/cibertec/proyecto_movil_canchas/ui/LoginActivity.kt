@@ -10,6 +10,7 @@ import androidx.lifecycle.lifecycleScope
 import com.cibertec.proyecto_movil_canchas.MainActivity
 import com.cibertec.proyecto_movil_canchas.R
 import com.cibertec.proyecto_movil_canchas.data.AcademiaStore
+import com.cibertec.proyecto_movil_canchas.data.FirebaseManager
 import com.cibertec.proyecto_movil_canchas.data.SessionManager
 import com.cibertec.proyecto_movil_canchas.databinding.ActivityLoginBinding
 import com.cibertec.proyecto_movil_canchas.network.RetrofitClient
@@ -35,6 +36,11 @@ class LoginActivity : AppCompatActivity() {
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Inicializar datos en Firebase Firestore en segundo plano si está vacío
+        lifecycleScope.launch(Dispatchers.IO) {
+            FirebaseManager.inicializarDatosSiEsNecesario()
+        }
+
         configurarAccesosRapidos()
 
         binding.buttonLogin.setOnClickListener {
@@ -46,7 +52,7 @@ class LoginActivity : AppCompatActivity() {
     private fun configurarAccesosRapidos() {
         binding.chipOperador.setOnClickListener {
             binding.editTextUsuario.setText("operador1")
-            binding.editTextPassword.setText("12345")
+            binding.editTextPassword.setText("123456")
             binding.textViewErrorLogin.visibility = View.GONE
         }
         binding.chipProfesor.setOnClickListener {
@@ -125,6 +131,13 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private suspend fun validarCredenciales(user: String, pass: String): UsuarioDTO? {
+        // 1. Intentar validar con Firebase Authentication y Cloud Firestore
+        try {
+            val usuarioFirebase = FirebaseManager.autenticar(user, pass)
+            if (usuarioFirebase != null) return usuarioFirebase
+        } catch (_: Exception) {}
+
+        // 2. Intentar con Azure (si está disponible)
         try {
             val listaRemota = RetrofitClient.apiService.getUsuarios()
             val encontrado = listaRemota.find {
@@ -132,20 +145,19 @@ class LoginActivity : AppCompatActivity() {
                 it.password.trim() == pass
             }
             if (encontrado != null) return encontrado
-        } catch (_: Exception) {
-            // Modo offline / fallo de conexión con Azure: validar con credenciales de prueba conocidas
-            val cuentasRespaldo = listOf(
-                UsuarioDTO(1, "admin", "Administrador Principal", "999000143", "admin123", true, "Administrador"),
-                UsuarioDTO(2, "operador1", "Carlos Recepción", "999000222", "12345", true, "Operador"),
-                UsuarioDTO(3, "profe_miguel", "Miguel Angel Quispe", "987333444", "123456", true, "Profesor"),
-                UsuarioDTO(4, "profe_jorge", "Jorge Luis Ramos", "987555666", "123456", true, "Profesor")
-            )
-            return cuentasRespaldo.find {
-                it.usernameUsuario.trim().equals(user, ignoreCase = true) &&
-                it.password.trim() == pass
-            }
+        } catch (_: Exception) {}
+
+        // 3. Modo offline / respaldo local
+        val cuentasRespaldo = listOf(
+            UsuarioDTO(1, "admin", "Administrador Principal", "999000143", "admin123", true, "Administrador"),
+            UsuarioDTO(2, "operador1", "Carlos Recepción", "999000222", "123456", true, "Operador"),
+            UsuarioDTO(3, "profe_miguel", "Miguel Angel Quispe", "987333444", "123456", true, "Profesor"),
+            UsuarioDTO(4, "profe_jorge", "Jorge Luis Ramos", "987555666", "123456", true, "Profesor")
+        )
+        return cuentasRespaldo.find {
+            it.usernameUsuario.trim().equals(user, ignoreCase = true) &&
+            it.password.trim() == pass
         }
-        return null
     }
 
     private fun bloquearUI(bloquear: Boolean) {

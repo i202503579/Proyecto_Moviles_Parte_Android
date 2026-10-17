@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "181635249566",
+    "project_id": "canchitas-cibertec",
+    "storage_bucket": "canchitas-cibertec.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:181635249566:android:05b49db535654f92de528f",
+        "android_client_info": {
+          "package_name": "com.cibertec.proyecto_movil_canchas"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDB8WBJy2aHJBVXh0W10cO4OavHYeS4Ygs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
