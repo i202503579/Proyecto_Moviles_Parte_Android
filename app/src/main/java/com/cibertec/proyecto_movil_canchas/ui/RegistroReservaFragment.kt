@@ -26,7 +26,6 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
-
 class RegistroReservaFragment : Fragment() {
 
     private var _binding: FragmentRegistroReservaBinding? = null
@@ -39,8 +38,9 @@ class RegistroReservaFragment : Fragment() {
     private var inicioSeleccionado: Calendar? = null
     private var clienteExistente: Cliente? = null
 
-    private fun horasSeleccionadas(): Int = if(binding.radioDosHoras.isChecked) 2 else 1
-    private fun actualizarPrecio(){
+    private fun horasSeleccionadas(): Int = if (binding.radioDosHoras.isChecked) 2 else 1
+
+    private fun actualizarPrecio() {
         val cancha = canchaSeleccionada ?: return
         val horas = horasSeleccionadas()
         binding.textViewPrecio.text =
@@ -58,7 +58,7 @@ class RegistroReservaFragment : Fragment() {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        _binding = FragmentRegistroReservaBinding.inflate(inflater,container,false)
+        _binding = FragmentRegistroReservaBinding.inflate(inflater, container, false)
         return binding.root
     }
 
@@ -79,6 +79,7 @@ class RegistroReservaFragment : Fragment() {
             if (clienteExistente != null) reiniciarCliente()
         }
     }
+
     private fun mostrarSelectorFechaHora() {
         val calendarioActual = Calendar.getInstance()
         val inicioDeHoy = Calendar.getInstance().apply {
@@ -121,6 +122,7 @@ class RegistroReservaFragment : Fragment() {
             datePicker.minDate = inicioDeHoy
         }.show()
     }
+
     private fun cargarCanchas() {
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             val lista = syncRepository.sincronizarCanchas()
@@ -139,6 +141,7 @@ class RegistroReservaFragment : Fragment() {
             }
         }
     }
+
     private fun buscarCliente() {
         val documento = binding.editTextDocumento.text.toString().trim()
         if (documento.isBlank()) {
@@ -156,6 +159,7 @@ class RegistroReservaFragment : Fragment() {
             }
         }
     }
+
     private fun mostrarClienteExistente(cliente: Cliente) {
         binding.editTextCliente.setText(cliente.nombre)
         binding.editTextTelefono.setText(cliente.telefono.orEmpty())
@@ -183,12 +187,14 @@ class RegistroReservaFragment : Fragment() {
         binding.radioParticular.isChecked = true
         binding.textViewEstadoCliente.visibility = View.GONE
     }
+
     private fun bloquearDatosCliente(bloquear: Boolean) {
         binding.editTextCliente.isEnabled = !bloquear
         binding.editTextTelefono.isEnabled = !bloquear
         binding.radioParticular.isEnabled = !bloquear
         binding.radioInstitucional.isEnabled = !bloquear
     }
+
     private fun actualizarTextoHorario() {
         val inicio = inicioSeleccionado ?: return
         val fin = (inicio.clone() as Calendar).apply { add(Calendar.HOUR_OF_DAY, horasSeleccionadas()) }
@@ -202,6 +208,7 @@ class RegistroReservaFragment : Fragment() {
         )
         binding.textViewErrorFormulario.visibility = View.GONE
     }
+
     private fun guardarReserva() {
         val cancha = canchaSeleccionada
         val documento = binding.editTextDocumento.text.toString().trim()
@@ -234,7 +241,6 @@ class RegistroReservaFragment : Fragment() {
         }
         if (!formularioValido || cancha == null || inicio == null) return
 
-        // Si el cliente ya existía se usa tal cual; si no, se crea junto con la reserva.
         val cliente = clienteExistente ?: Cliente(
             nombre = nombre,
             numeroDocumento = documento,
@@ -258,9 +264,9 @@ class RegistroReservaFragment : Fragment() {
                 when (resultado) {
                     is ResultadoReserva.EXITO -> {
                         val mensaje = if (enviadaAzure) {
-                            "Reserva guardada y sincronizada con Azure"
+                            R.string.reserva_guardada_azure
                         } else {
-                            "Reserva guardada localmente (pendiente de sincronización)"
+                            R.string.reserva_guardada_local
                         }
                         Toast.makeText(requireContext(), mensaje, Toast.LENGTH_SHORT).show()
                         limpiarFormulario()
@@ -284,6 +290,7 @@ class RegistroReservaFragment : Fragment() {
             }
         }
     }
+
     private fun mostrarError(mensaje: String) {
         binding.textViewErrorFormulario.text = mensaje
         binding.textViewErrorFormulario.visibility = View.VISIBLE

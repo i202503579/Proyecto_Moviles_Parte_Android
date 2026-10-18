@@ -41,7 +41,11 @@ class AlumnoAsistenciaAdapter(
 
         fun vincular(item: AlumnoAsistenciaItem, numero: Int) {
             val context = binding.root.context
-            binding.textViewNombreAlumno.text = "$numero. ${item.nombreAlumno}"
+            binding.textViewNombreAlumno.text = context.getString(
+                R.string.formato_numero_alumno,
+                numero,
+                item.nombreAlumno
+            )
             binding.textViewTelefonoApoderado.text = if (item.telefonoApoderado.isNullOrBlank()) {
                 context.getString(R.string.apoderado_no_registrado)
             } else {

@@ -41,7 +41,11 @@ class ClaseProfesorAdapter(
 
         fun vincular(clase: ClaseAcademia) {
             val context = binding.root.context
-            binding.textViewCanchaClase.text = "${clase.nombreCancha} (Clase #${clase.idClase})"
+            binding.textViewCanchaClase.text = context.getString(
+                R.string.formato_cancha_clase,
+                clase.nombreCancha,
+                clase.idClase
+            )
             binding.textViewFechaHorarioClase.text = context.getString(
                 R.string.formato_fecha_horario_clase,
                 clase.fechaClase,

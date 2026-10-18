@@ -215,4 +215,41 @@
     <string name="error_crear_usuario">No se pudo registrar el usuario.</string>
     <string name="titulo_lista_usuarios">Usuarios del sistema</string>
     <string name="boton_sincronizar_usuarios">Sincronizar con Azure</string>
+
+    <string name="formato_numero_alumno">%1$d. %2$s</string>
+    <string name="formato_cancha_clase">%1$s (Clase #%2$d)</string>
+
+    <string name="estado_balon_devuelto">Devuelto</string>
+    <string name="estado_balon_danado">Dañado</string>
+    <string name="estado_balon_perdido">Perdido</string>
+    <string name="reserva_restaurada_exito">Reserva restaurada correctamente</string>
+    <string name="error_restaurar_horario_ocupado">No es posible la restauración: Horario ocupado</string>
+    <string name="error_restaurar_no_permitido">Solo se puede restaurar reservas canceladas</string>
+    <string name="error_restaurar_reserva">Error al restaurar reserva</string>
+    <string name="dialogo_restaurar_titulo">Restaurar reserva</string>
+    <string name="dialogo_restaurar_mensaje">¿Estás seguro de que deseas reactivar la reserva de %1$s para la cancha %2$s?</string>
+    <string name="dialogo_restaurar_confirmar">Sí, Restaurar</string>
+    <string name="hint_confirmar_eliminar">Escribe ELIMINAR</string>
+    <string name="reserva_eliminada_exito">Reserva eliminada</string>
+    <string name="error_anular_sin_pagos">Esta reserva no tiene pagos registrados para anular</string>
+    <string name="hint_monto_reversar">Monto a descontar/reversar</string>
+    <string name="dialogo_anular_pago_titulo">Anular / Reversar Pago</string>
+    <string name="dialogo_anular_pago_mensaje">Monto recibido actual: S/ %1$.2f\n\nIngresa la cantidad a descontar:</string>
+    <string name="boton_continuar">Continuar</string>
+    <string name="error_monto_supera_pagado">El monto a descontar supera lo pagado</string>
+    <string name="dialogo_confirmar_reversion_titulo">¿Estás seguro?</string>
+    <string name="dialogo_confirmar_reversion_mensaje">Vas a retirar S/ %1$.2f del registro de esta reserva.\n\nEsta acción modificará el saldo de caja. ¿Deseas proceder?</string>
+    <string name="dialogo_confirmar_reversion_positivo">Sí, anular pago</string>
+    <string name="pago_reversado_exito">Pago reversado correctamente</string>
+    <string name="error_accion_no_permitida_estado">Acción no permitida para este estado</string>
+    <string name="error_reversar_pago">Error al reversar el pago</string>
+    <string name="filtros_restablecidos">Filtros restablecidos</string>
+
+    <string name="usuarios_sincronizados_azure">Usuarios sincronizados con Azure</string>
+    <string name="formato_usuarios_activos_firebase">Usuarios activos en Firebase: %1$d</string>
+
+    <string name="reserva_guardada_azure">Reserva guardada y sincronizada con Azure</string>
+    <string name="reserva_guardada_local">Reserva guardada localmente (pendiente de sincronización)</string>
+
+    <string name="usuario_por_defecto">Usuario</string>
 </resources>

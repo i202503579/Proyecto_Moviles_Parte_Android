@@ -64,8 +64,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     private fun configurarSesionYPermisos(savedInstanceState: Bundle?) {
         val usuario = sessionManager.obtenerUsuario()
-        val nombre = usuario?.nombreUsuario ?: "Usuario"
-        val rol = usuario?.rol ?: "Operador"
+        val nombre = usuario?.nombreUsuario ?: getString(R.string.usuario_por_defecto)
+        val rol = usuario?.rol ?: getString(R.string.rol_operador)
 
         binding.textViewUsuarioSesion.text = getString(R.string.formato_usuario_sesion, nombre, rol)
 

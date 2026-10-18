@@ -105,11 +105,19 @@ class RegistrarUsuarioFragment : Fragment() {
                 if (_binding == null) return@withContext
 
                 if (exito) {
-                    Toast.makeText(requireContext(), getString(R.string.usuario_creado_exito), Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        requireContext(),
+                        getString(R.string.usuario_creado_exito),
+                        Toast.LENGTH_LONG
+                    ).show()
                     limpiarFormulario()
                     actualizarContadorUsuarios()
                 } else {
-                    Toast.makeText(requireContext(), getString(R.string.error_crear_usuario), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        requireContext(),
+                        getString(R.string.error_crear_usuario),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
         }
@@ -122,7 +130,11 @@ class RegistrarUsuarioFragment : Fragment() {
             withContext(Dispatchers.Main) {
                 bloquearUI(false)
                 if (_binding != null) {
-                    Toast.makeText(requireContext(), "Usuarios sincronizados con Azure", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        requireContext(),
+                        R.string.usuarios_sincronizados_azure,
+                        Toast.LENGTH_SHORT
+                    ).show()
                     actualizarContadorUsuarios()
                 }
             }
@@ -133,7 +145,10 @@ class RegistrarUsuarioFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             val lista = FirebaseManager.obtenerUsuarios()
             withContext(Dispatchers.Main) {
-                _binding?.textViewTotalUsuarios?.text = "Usuarios activos en Firebase: ${lista.size}"
+                _binding?.textViewTotalUsuarios?.text = getString(
+                    R.string.formato_usuarios_activos_firebase,
+                    lista.size
+                )
             }
         }
     }
