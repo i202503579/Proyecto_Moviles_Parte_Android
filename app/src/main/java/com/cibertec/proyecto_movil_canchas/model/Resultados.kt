@@ -5,6 +5,7 @@ sealed class ResultadoReserva{
     object HorarioOcupado : ResultadoReserva()
     object FechaPasada : ResultadoReserva()
     object Error  : ResultadoReserva()
+    object FueraDeHorario : ResultadoReserva()
 }
 
 enum class ResultadoPago { EXITO, MONTO_INVALIDO, EXCEDE_SALDO, EXCEDE_PAGADO, NO_PERMITIDO, ERROR }

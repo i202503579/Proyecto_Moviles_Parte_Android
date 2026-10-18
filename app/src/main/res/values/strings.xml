@@ -138,7 +138,7 @@
     <string name="error_devolucion_sin_prestamo">Esta reserva no tiene un balón pendiente de devolución.</string>
     <string name="error_devolucion">No fue posible registrar la devolución.</string>
     <string name="error_cancelar_con_balon">Primero registre la devolución del balón.</string>
-
+    <string name="error_fuera_de_horario">El local atiende de %1$02d:00 a %2$02d:00. La reserva debe empezar y terminar dentro de ese horario</string>
 
 
     <string name="boton_profesor">Profesor</string>
