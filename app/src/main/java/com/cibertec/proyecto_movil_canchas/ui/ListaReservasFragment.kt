@@ -36,6 +36,7 @@ import com.cibertec.proyecto_movil_canchas.model.ResultadoPrestamo
 import com.cibertec.proyecto_movil_canchas.model.ResultadoRestauracion
 import androidx.lifecycle.lifecycleScope
 import androidx.core.content.edit
+import com.cibertec.proyecto_movil_canchas.data.SessionManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -56,7 +57,10 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
     private lateinit var prestamoStore: PrestamoStore
     private var acelerometro: Sensor? = null
     private var ultimoTiempoSacudida: Long = 0
-
+    private fun esAdmin(): Boolean = SessionManager(requireContext().applicationContext).esAdmin()
+    private fun filtroInicial(): FiltroReservas =
+        if (esAdmin()) FiltroReservas(rango = RangoFecha.TODAS, estado = FiltroEstado.CANCELADAS)
+        else FiltroReservas()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val contexto = requireContext().applicationContext
@@ -92,6 +96,11 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
         configurarGestos()
     }
     private fun configurarFiltros(){
+        if (esAdmin()) {
+            filtro = filtroInicial()
+            binding.chipGroupRango.check(R.id.chipTodas)
+            binding.chipGroupEstado.check(R.id.chipCanceladas)
+        }
         binding.chipGroupRango.setOnCheckedStateChangeListener { _, ids ->
             val rango = when (ids.firstOrNull()){
                 R.id.chipHoy -> RangoFecha.HOY
@@ -157,8 +166,10 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
 
         val builder = MaterialAlertDialogBuilder(requireContext()).setView(dialogBinding.root)
         if (esCancelada){
-            builder.setPositiveButton("Quitar del dispositivo"){ _, _ ->
-                confirmarEliminacionLocal(reserva) }
+            if (esAdmin()) {
+                builder.setPositiveButton(R.string.boton_eliminar_definitivo) { _, _ ->
+                    confirmarEliminacionLocal(reserva) }
+            }
         }else{
             builder.setPositiveButton(R.string.boton_registrar_pago){ _, _ ->
                 mostrarPago(reserva) }
@@ -275,6 +286,12 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
                             Toast.LENGTH_SHORT).show()
                         posicion?.let { reservaAdapter.restaurarTarjeta(it) }
                     }
+
+                    ResultadoRestauracion.FECHA_PASADA -> {
+                        Toast.makeText(requireContext(), R.string.error_fecha_pasada, Toast.LENGTH_LONG)
+                            .show()
+                        posicion?.let { reservaAdapter.restaurarTarjeta(it) }
+                    }
                     else -> {
                         Toast.makeText(requireContext(), "Error al restaurar reserva", Toast.LENGTH_SHORT).show()
                         posicion?.let { reservaAdapter.restaurarTarjeta(it) }
@@ -298,12 +315,19 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
             }.show()
     }
     private fun confirmarEliminacionLocal(reserva: Reserva, posicion: Int? = null) {
+        // Solo el Administrador (también se comprueba dentro de SyncRepository)
+        if (!esAdmin()) {
+            Toast.makeText(requireContext(), R.string.error_eliminar_solo_admin, Toast.LENGTH_LONG).show()
+            posicion?.let { reservaAdapter.restaurarTarjeta(it) }
+            return
+        }
         if (reserva.montoRecibido > 0.0) {
-            Toast.makeText(
-                requireContext(),
-                "No es puede quitar: primero debes anular/devolver el dinero registrado",
-                Toast.LENGTH_LONG
-            ).show()
+            Toast.makeText(requireContext(), R.string.error_eliminar_con_dinero, Toast.LENGTH_LONG).show()
+            posicion?.let { reservaAdapter.restaurarTarjeta(it) }
+            return
+        }
+        if (reserva.prestamoEstado != null) {
+            Toast.makeText(requireContext(), R.string.error_eliminar_con_prestamo, Toast.LENGTH_LONG).show()
             posicion?.let { reservaAdapter.restaurarTarjeta(it) }
             return
         }
@@ -312,10 +336,10 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
         }
         val dialogo = MaterialAlertDialogBuilder(requireContext())
-            .setTitle("¿Ejecutar orden 67?")
-            .setMessage("Se eliminará la reserva de ${reserva.clienteNombre} en ${reserva.canchaNombre} únicamente de este teléfono. \n\nEscribe ELIMINAR para confirmar:")
+            .setTitle(R.string.eliminar_definitivo_titulo)
+            .setMessage(getString(R.string.eliminar_definitivo_mensaje, reserva.clienteNombre, reserva.canchaNombre))
             .setView(input)
-            .setPositiveButton("Quitar"){ _, _ ->
+            .setPositiveButton(R.string.boton_eliminar_confirmar){ _, _ ->
                 ejecutarEliminacionLocal(reserva)
             }
             .setNegativeButton(R.string.dialogo_volver) { _, _ ->
@@ -663,10 +687,10 @@ class ListaReservasFragment : Fragment(), SensorEventListener {
         }
     }
     private fun restablecerFiltros() {
-        filtro = FiltroReservas()
+        filtro = filtroInicial()
 
-        binding.chipGroupRango.check(R.id.chipProximas)
-        binding.chipGroupEstado.check(R.id.chipActivas)
+        binding.chipGroupRango.check(if (esAdmin()) R.id.chipTodas else R.id.chipProximas)
+        binding.chipGroupEstado.check(if (esAdmin()) R.id.chipCanceladas else R.id.chipActivas)
         Toast.makeText(requireContext(), "Filtros restablecidos", Toast.LENGTH_SHORT).show()
     }
     private fun mostrarEstadoRespaldo(){

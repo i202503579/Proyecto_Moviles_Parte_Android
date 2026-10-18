@@ -90,7 +90,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             }
             sessionManager.esAdmin() -> {
                 binding.buttonRegistro.visibility = View.GONE
-                binding.buttonLista.visibility = View.GONE
+                binding.buttonLista.visibility = View.VISIBLE
                 binding.buttonProfesor.visibility = View.GONE
                 binding.buttonUsuarios.visibility = View.VISIBLE
                 if (savedInstanceState == null) {

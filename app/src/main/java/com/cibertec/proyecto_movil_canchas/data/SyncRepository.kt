@@ -25,6 +25,7 @@ import java.util.Locale
 class SyncRepository(context: Context) {
 
     private val dbHelper = CanchitasDbHelper.getInstance(context)
+    private val sessionManager = SessionManager(context.applicationContext)
     private val reservaStore = ReservaStore(context)
     private val canchaStore = CanchaStore(context)
     private val clienteStore = ClienteStore(context)
@@ -249,35 +250,25 @@ class SyncRepository(context: Context) {
 
     // 4. SINCRONIZAR RESERVAS DESDE AZURE
     suspend fun eliminarReservaGlobal(idReservaLocal: Int): Boolean {
+        if (!sessionManager.esAdmin()) {
+            Log.w(TAG, "Eliminación global rechazada: el usuario no es Administrador")
+            return false
+        }
+        if (!puedeEliminarse(idReservaLocal)) return false
+
         return try {
             val idServidor = obtenerIdReservaServidor(idReservaLocal)
 
             if (idServidor != null && idServidor > 0) {
-                val prestamos = RetrofitClient.apiService.getPrestamos()
-                    .filter { it.idReserva == idServidor }
-
-                for (p in prestamos) {
-                    val r = RetrofitClient.apiService.deletePrestamo(p.idPrestamo)
-                    if (!r.isSuccessful && esFalloReal(
-                            r,
-                            "DELETE préstamo ${p.idPrestamo}"
-                        )
-                    ) return false
-                }
+                val tienePrestamo = RetrofitClient.apiService.getPrestamos()
+                    .any { it.idReserva == idServidor }
+                if (tienePrestamo) return false
 
                 val resp = RetrofitClient.apiService.deleteReserva(idServidor)
-                if (!resp.isSuccessful && esFalloReal(
-                        resp,
-                        "DELETE reserva $idServidor"
-                    )
-                ) return false
+                if (!resp.isSuccessful && esFalloReal(resp, "DELETE reserva $idServidor")) return false
             }
 
-            try {
-                FirebaseManager.db.collection("reservas").document(idReservaLocal.toString())
-                    .delete()
-            } catch (_: Exception) {
-            }
+            borrarReservaEnFirestore(idReservaLocal, idServidor)
 
             reservaStore.eliminacionFisicamenteLocal(idReservaLocal)
         } catch (e: Exception) {
@@ -285,6 +276,42 @@ class SyncRepository(context: Context) {
             false
         }
     }
+
+    // Cancelada, sin dinero recibido y sin ningún préstamo de balón
+    private fun puedeEliminarse(idReservaLocal: Int): Boolean {
+        val db = dbHelper.readableDatabase
+        db.query(
+            ReservaContrato.TABLA_RESERVAS,
+            arrayOf(ReservaContrato.COLUMNA_ESTADO, ReservaContrato.COLUMNA_MONTO_RECIBIDO),
+            "${ReservaContrato.COLUMNA_ID} = ?",
+            arrayOf(idReservaLocal.toString()),
+            null, null, null
+        ).use { cursor ->
+            if (!cursor.moveToFirst()) return false
+            if (cursor.getString(0) != "Cancelada") return false
+            if (cursor.getDouble(1) > 0.0) return false
+        }
+        return !existePrestamoPorReserva(db, idReservaLocal)
+    }
+
+     //Solo se borra si el documento es de esta reserva Si quedara el documento, la sincronización volvería a importar la reserva.
+     private suspend fun borrarReservaEnFirestore(idReservaLocal: Int, idServidor: Int?) {
+         runCatching {
+             kotlinx.coroutines.withTimeoutOrNull(8_000L) {
+                 val reservas = FirebaseManager.db.collection("reservas")
+                 val doc = reservas.document(idReservaLocal.toString()).get().await()
+                 val idAzureDoc = doc.getLong("idServidorAzure")?.toInt()
+                 if (doc.exists() && (idAzureDoc == null || idAzureDoc == idServidor)) {
+                     doc.reference.delete().await()
+                 }
+                 if (idServidor != null && idServidor > 0) {
+                     for (d in reservas.whereEqualTo("idServidorAzure", idServidor).get().await().documents) {
+                         d.reference.delete().await()
+                     }
+                 }
+             }
+         }
+     }
 
     // true = error; false = el registro ya no existía en la nube
     private fun esFalloReal(resp: retrofit2.Response<*>, contexto: String): Boolean {

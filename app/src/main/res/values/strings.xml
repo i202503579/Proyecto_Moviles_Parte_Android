@@ -78,6 +78,16 @@
     <string name="error_documento">Ingrese el documento del cliente</string>
     <string name="error_fecha_hora">Elija la fecha y la hora de inicio</string>
     <string name="error_horario_ocupado">Esa cancha ya está reservada en ese horario</string>
+    <string name="error_fecha_pasada">No se puede reservar en una fecha u hora que ya pasó</string>
+    <string name="error_restaurar_fecha_pasada">No es posible restaurar: la fecha y hora de la reserva ya pasaron</string>
+
+    <string name="boton_eliminar_definitivo">Eliminar definitivamente</string>
+    <string name="boton_eliminar_confirmar">Eliminar</string>
+    <string name="eliminar_definitivo_titulo">¿Eliminar definitivamente?</string>
+    <string name="eliminar_definitivo_mensaje">Se eliminará la reserva de %1$s en %2$s de este teléfono y de la nube (Azure y Firebase). Esta acción no se puede deshacer.\n\nEscribe ELIMINAR para confirmar:</string>
+    <string name="error_eliminar_solo_admin">Solo el Administrador puede eliminar reservas definitivamente</string>
+    <string name="error_eliminar_con_dinero">No se puede eliminar: la reserva tiene dinero registrado. Primero anula o devuelve el pago</string>
+    <string name="error_eliminar_con_prestamo">No se puede eliminar: la reserva tiene un préstamo de balón registrado</string>
 
     <string name="lista_gesto_cancelar">Deslice a la derecha para cambiar el estado y a la izquierda para cancelar.</string>
     <string name="dialogo_cancelar_reserva_titulo">Cancelar reserva</string>

@@ -64,9 +64,10 @@ class ReservaAdapter(
                 }
                 binding.chipBalon.visibility = if (reserva.tipoCliente == "Institucional") View.VISIBLE else View.GONE
                 val fondoSemaforo = when (reserva.estado) {
-                    binding.root.context.getString(R.string.estado_confirmado) -> R.drawable.bg_semaforo_verde
+                    binding.root.context.getString(R.string.estado_confirmado) -> R.drawable.bg_semaforo_azul
                     binding.root.context.getString(R.string.estado_pendiente) -> R.drawable.bg_semaforo_amarillo
                     binding.root.context.getString(R.string.estado_cancelada) -> R.drawable.bg_semaforo_rojo
+                    binding.root.context.getString(R.string.estado_completada) -> R.drawable.bg_semaforo_verde
                     else -> R.drawable.bg_semaforo_neutro
                 }
                 binding.viewSemaforoTarjeta.setBackgroundResource(fondoSemaforo)

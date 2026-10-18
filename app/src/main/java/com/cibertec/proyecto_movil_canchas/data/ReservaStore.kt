@@ -24,6 +24,8 @@ class ReservaStore(context: Context) {
         if (horas !in ReglasReservas.HORAS_PERMITIDAS) return ResultadoReserva.Error
         val horaFin = horaInicio + (horas * ReglasReservas.MS_POR_HORA)
         val db = dbHelper.writableDatabase
+        if (horas !in ReglasReservas.HORAS_PERMITIDAS) return ResultadoReserva.Error
+        if (horaInicio < ReglasReservas.inicioMinimoReserva()) return ResultadoReserva.FechaPasada
         db.beginTransaction()
         try {
             if (hayChoqueDeHorario(db, cancha.id, horaInicio, horaFin)) {
@@ -176,7 +178,7 @@ class ReservaStore(context: Context) {
             }
             if (!encontrada) return ResultadoRestauracion.ERROR
             if (estado != "Cancelada") return ResultadoRestauracion.NO_PERMITIDO
-
+            if (horaInicio < ReglasReservas.inicioMinimoReserva()) return ResultadoRestauracion.FECHA_PASADA
             if (hayChoqueDeHorario(db, canchaId, horaInicio, horaFin)) {
                 return ResultadoRestauracion.HORARIO_OCUPADO
             }

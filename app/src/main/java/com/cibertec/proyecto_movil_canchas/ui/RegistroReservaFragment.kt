@@ -18,6 +18,7 @@ import com.cibertec.proyecto_movil_canchas.model.Cancha
 import com.cibertec.proyecto_movil_canchas.model.Cliente
 import com.cibertec.proyecto_movil_canchas.model.ResultadoReserva
 import androidx.lifecycle.lifecycleScope
+import com.cibertec.proyecto_movil_canchas.model.ReglasReservas
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -80,17 +81,33 @@ class RegistroReservaFragment : Fragment() {
     }
     private fun mostrarSelectorFechaHora() {
         val calendarioActual = Calendar.getInstance()
+        val inicioDeHoy = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
         DatePickerDialog(
             requireContext(),
             { _, anio, mes, dia ->
                 TimePickerDialog(
                     requireContext(),
                     { _, hora, minuto ->
-                        inicioSeleccionado = Calendar.getInstance().apply {
+                        val candidato = Calendar.getInstance().apply {
                             set(anio, mes, dia, hora, minuto, 0)
                             set(Calendar.MILLISECOND, 0)
                         }
-                        actualizarTextoHorario()
+                        if (candidato.timeInMillis < ReglasReservas.inicioMinimoReserva()) {
+                            Toast.makeText(
+                                requireContext(),
+                                R.string.error_fecha_pasada,
+                                Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            inicioSeleccionado = candidato
+                            actualizarTextoHorario()
+                        }
                     },
                     calendarioActual.get(Calendar.HOUR_OF_DAY),
                     calendarioActual.get(Calendar.MINUTE),
@@ -100,7 +117,9 @@ class RegistroReservaFragment : Fragment() {
             calendarioActual.get(Calendar.YEAR),
             calendarioActual.get(Calendar.MONTH),
             calendarioActual.get(Calendar.DAY_OF_MONTH)
-        ).show()
+        ).apply {
+            datePicker.minDate = inicioDeHoy
+        }.show()
     }
     private fun cargarCanchas() {
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
@@ -249,6 +268,12 @@ class RegistroReservaFragment : Fragment() {
                     }
                     ResultadoReserva.HorarioOcupado ->
                         mostrarError(getString(R.string.error_horario_ocupado))
+                    ResultadoReserva.FechaPasada ->
+                        Toast.makeText(
+                            requireContext(),
+                            R.string.error_fecha_pasada,
+                            Toast.LENGTH_LONG
+                        ).show()
                     ResultadoReserva.Error ->
                         Toast.makeText(
                             requireContext(),
