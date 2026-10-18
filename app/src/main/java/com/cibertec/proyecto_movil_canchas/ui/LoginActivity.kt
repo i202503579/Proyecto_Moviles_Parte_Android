@@ -140,16 +140,19 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private suspend fun validarCredenciales(user: String, pass: String): UsuarioDTO? {
+        val userLimpio = user.trim()
+        val passLimpio = pass.trim()
+
         try {
-            val usuarioFirebase = FirebaseManager.autenticar(user, pass)
+            val usuarioFirebase = FirebaseManager.autenticar(userLimpio, passLimpio)
             if (usuarioFirebase != null) return usuarioFirebase
         } catch (_: Exception) {}
 
         try {
             val listaRemota = RetrofitClient.apiService.getUsuarios()
             val encontrado = listaRemota.find {
-                it.usernameUsuario.trim().equals(user, ignoreCase = true) &&
-                it.password.trim() == pass
+                it.usernameUsuario.trim().equals(userLimpio, ignoreCase = true) &&
+                it.password.trim() == passLimpio
             }
             if (encontrado != null) return encontrado
         } catch (_: Exception) {}
@@ -161,8 +164,8 @@ class LoginActivity : AppCompatActivity() {
             UsuarioDTO(4, "profe_jorge", "Jorge Luis Ramos", "987555666", "123456", true, "Profesor")
         )
         return cuentasRespaldo.find {
-            it.usernameUsuario.trim().equals(user, ignoreCase = true) &&
-            it.password.trim() == pass
+            it.usernameUsuario.trim().equals(userLimpio, ignoreCase = true) &&
+            it.password.trim() == passLimpio
         }
     }
 

@@ -32,10 +32,6 @@ object FirebaseManager {
         }
     }
 
-    /**
-     * Revisa si Firestore ya tiene datos. Si está vacío, precarga las canchas,
-     * usuarios, clases y alumnos iniciales automáticamente en la nube.
-     */
     suspend fun inicializarDatosSiEsNecesario() {
         try {
             val snapshotCanchas = db.collection("canchas").limit(1).get().await()
@@ -91,6 +87,7 @@ object FirebaseManager {
                 "telefono" to usuario.telefono,
                 "email" to email,
                 "rol" to usuario.rol,
+                "password" to usuario.password,
                 "activoUsuario" to usuario.activoUsuario
             )
             db.collection("usuarios").document(usuario.idUsuario.toString()).set(datos, SetOptions.merge()).await()
@@ -129,47 +126,134 @@ object FirebaseManager {
         // Las clases inician vacías para que el usuario las cree manualmente
     }
 
-   // Firebase Authentication para recuperar su perfil y rol desde Firestore.
     suspend fun autenticar(usernameOUsuario: String, pass: String): UsuarioDTO? {
-        val email = formatearCorreo(usernameOUsuario)
+        val userLimpio = usernameOUsuario.trim()
+        val passLimpio = pass.trim()
+        if (userLimpio.isBlank() || passLimpio.isBlank()) return null
 
-        runCatching {
-            auth.signInWithEmailAndPassword(email, pass).await()
+        val email = formatearCorreo(userLimpio)
+
+        // 1. Intentar autenticar con Firebase Authentication (Email y Password)
+        var authExitoso = false
+        try {
+            val authResult = auth.signInWithEmailAndPassword(email, passLimpio).await()
+            if (authResult.user != null) {
+                authExitoso = true
+                Log.d(TAG, "Autenticacion exitosa en Firebase Auth para: $email")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Fallo inicio de sesion en Firebase Auth para $email: ${e.message}")
         }
 
+        if (authExitoso) {
+            val doc = obtenerDocUsuario(userLimpio, email)
+            if (doc != null) {
+                return UsuarioDTO(
+                    idUsuario = (doc.getLong("idUsuario") ?: 0L).toInt(),
+                    usernameUsuario = doc.getString("usernameUsuario") ?: userLimpio,
+                    nombreUsuario = doc.getString("nombreUsuario") ?: "",
+                    telefono = doc.getString("telefono") ?: "",
+                    password = passLimpio,
+                    activoUsuario = doc.getBoolean("activoUsuario") ?: true,
+                    rol = doc.getString("rol") ?: "Operador"
+                )
+            }
+
+            try {
+                val usuariosAzure = RetrofitClient.apiService.getUsuarios()
+                val enAzure = usuariosAzure.find { it.usernameUsuario.trim().equals(userLimpio, ignoreCase = true) }
+                if (enAzure != null) return enAzure
+            } catch (_: Exception) {}
+
+            return UsuarioDTO(
+                idUsuario = 0,
+                usernameUsuario = userLimpio,
+                nombreUsuario = auth.currentUser?.displayName ?: userLimpio,
+                telefono = "",
+                password = passLimpio,
+                activoUsuario = true,
+                rol = "Operador"
+            )
+        }
+
+        try {
+            val listaAzure = RetrofitClient.apiService.getUsuarios()
+            val usuarioAzure = listaAzure.find {
+                it.usernameUsuario.trim().equals(userLimpio, ignoreCase = true) &&
+                it.password.trim() == passLimpio
+            }
+
+            if (usuarioAzure != null) {
+                Log.d(TAG, "Usuario validado con Azure API ($userLimpio). Sincronizando con Firebase Auth y Firestore...")
+
+                // Registrar automaticamente en Firebase Auth si la contrasena tiene al menos 6 caracteres
+                if (passLimpio.length >= 6) {
+                    try {
+                        auth.createUserWithEmailAndPassword(email, passLimpio).await()
+                        Log.d(TAG, "Cuenta $email creada exitosamente en Firebase Auth.")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Aviso creando usuario en Firebase Auth: ${e.message}")
+                    }
+                }
+
+                val datos = hashMapOf(
+                    "idUsuario" to usuarioAzure.idUsuario,
+                    "usernameUsuario" to usuarioAzure.usernameUsuario.trim(),
+                    "nombreUsuario" to usuarioAzure.nombreUsuario.trim(),
+                    "telefono" to usuarioAzure.telefono.trim(),
+                    "email" to email,
+                    "rol" to usuarioAzure.rol,
+                    "password" to passLimpio,
+                    "activoUsuario" to usuarioAzure.activoUsuario
+                )
+                db.collection("usuarios").document(usuarioAzure.idUsuario.toString()).set(datos, SetOptions.merge()).await()
+
+                return usuarioAzure
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "No se pudo consultar Azure API para login: ${e.message}")
+        }
+
+        val docFirestore = obtenerDocUsuario(userLimpio, email)
+        if (docFirestore != null) {
+            val passAlmacenada = docFirestore.getString("password")
+            if (!passAlmacenada.isNullOrBlank() && passAlmacenada.trim() == passLimpio) {
+                return UsuarioDTO(
+                    idUsuario = (docFirestore.getLong("idUsuario") ?: 0L).toInt(),
+                    usernameUsuario = docFirestore.getString("usernameUsuario") ?: userLimpio,
+                    nombreUsuario = docFirestore.getString("nombreUsuario") ?: "",
+                    telefono = docFirestore.getString("telefono") ?: "",
+                    password = passLimpio,
+                    activoUsuario = docFirestore.getBoolean("activoUsuario") ?: true,
+                    rol = docFirestore.getString("rol") ?: "Operador"
+                )
+            }
+        }
+
+        return null
+    }
+
+    private suspend fun obtenerDocUsuario(username: String, email: String): com.google.firebase.firestore.DocumentSnapshot? {
         val queryUser = runCatching {
             db.collection("usuarios")
-                .whereEqualTo("usernameUsuario", usernameOUsuario.trim())
+                .whereEqualTo("usernameUsuario", username.trim())
                 .limit(1)
                 .get()
                 .await()
         }.getOrNull()
 
-        val doc = if (queryUser != null && !queryUser.isEmpty) {
-            queryUser.documents.first()
-        } else {
-            runCatching {
-                val queryEmail = db.collection("usuarios")
-                    .whereEqualTo("email", email)
-                    .limit(1)
-                    .get()
-                    .await()
-                queryEmail.documents.firstOrNull()
-            }.getOrNull()
+        if (queryUser != null && !queryUser.isEmpty) {
+            return queryUser.documents.first()
         }
 
-        if (doc != null) {
-            return UsuarioDTO(
-                idUsuario = (doc.getLong("idUsuario") ?: 0L).toInt(),
-                usernameUsuario = doc.getString("usernameUsuario") ?: usernameOUsuario,
-                nombreUsuario = doc.getString("nombreUsuario") ?: "",
-                telefono = doc.getString("telefono") ?: "",
-                password = pass,
-                activoUsuario = doc.getBoolean("activoUsuario") ?: true,
-                rol = doc.getString("rol") ?: "Operador"
-            )
-        }
-        return null
+        return runCatching {
+            val queryEmail = db.collection("usuarios")
+                .whereEqualTo("email", email)
+                .limit(1)
+                .get()
+                .await()
+            queryEmail.documents.firstOrNull()
+        }.getOrNull()
     }
 
     suspend fun obtenerCanchas(): List<CanchaDTO> {
@@ -332,7 +416,6 @@ object FirebaseManager {
             emptyList()
         }
     }
-    // Replicar a Firestore, sin suspender ni esperar al server
     fun replicarClientes(clientes: List<ClienteDTO>) {
         // Un lote admite máximo 500 operaciones
         clientes.filter { it.numeroDocumento.isNotBlank() }.chunked(400).forEach { grupo ->
@@ -353,7 +436,6 @@ object FirebaseManager {
             }
         }
     }
-    // Replicar a Firestore, sin suspender ni esperar al server
     fun replicarAlumnosYClases(alumnos: List<AlumnoDTO>, clases: List<ClaseDTO>) {
         alumnos.chunked(400).forEach { grupo ->
             val lote = db.batch()

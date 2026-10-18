@@ -64,6 +64,9 @@ class SessionManager(context: Context) {
         prefs.edit {
             clear()
         }
+        try {
+            com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+        } catch (_: Exception) {}
     }
 
     companion object {
