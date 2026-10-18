@@ -33,10 +33,10 @@
                 android:id="@+id/buttonCerrarSesion"
                 style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
+                android:layout_height="@dimen/altura_button"
                 android:text="@string/boton_cerrar_sesion"
                 android:textColor="@color/blanco"
-                android:textSize="12sp" />
+                android:textSize="@dimen/text_caption" />
         </LinearLayout>
 
         <TextView
@@ -58,9 +58,9 @@
         <com.google.android.material.button.MaterialButton
             android:id="@+id/buttonRegistro"
             style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="0dp"
+            android:layout_width="@dimen/tamaño_zero"
             android:layout_height="@dimen/button_height"
-            android:layout_marginEnd="4dp"
+            android:layout_marginEnd="@dimen/elevation_card"
             android:layout_weight="1"
             android:backgroundTint="@color/verde_claro"
             android:text="@string/boton_registro"
@@ -69,9 +69,9 @@
         <com.google.android.material.button.MaterialButton
             android:id="@+id/buttonLista"
             style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="0dp"
+            android:layout_width="@dimen/tamaño_zero"
             android:layout_height="@dimen/button_height"
-            android:layout_marginHorizontal="4dp"
+            android:layout_marginHorizontal="@dimen/elevation_card"
             android:layout_weight="1"
             android:backgroundTint="@color/verde_claro"
             android:text="@string/boton_lista"
@@ -80,9 +80,9 @@
         <com.google.android.material.button.MaterialButton
             android:id="@+id/buttonProfesor"
             style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="0dp"
+            android:layout_width="@dimen/tamaño_zero"
             android:layout_height="@dimen/button_height"
-            android:layout_marginStart="4dp"
+            android:layout_marginStart="@dimen/elevation_card"
             android:layout_weight="1"
             android:backgroundTint="@color/verde_claro"
             android:text="@string/boton_profesor"
@@ -91,9 +91,9 @@
         <com.google.android.material.button.MaterialButton
             android:id="@+id/buttonUsuarios"
             style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="0dp"
+            android:layout_width="@dimen/tamaño_zero"
             android:layout_height="@dimen/button_height"
-            android:layout_marginStart="4dp"
+            android:layout_marginStart="@dimen/elevation_card"
             android:layout_weight="1"
             android:backgroundTint="@color/verde_claro"
             android:text="@string/boton_usuarios"
@@ -103,7 +103,7 @@
     <androidx.fragment.app.FragmentContainerView
         android:id="@+id/fragmentContainer"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
+        android:layout_height="@dimen/tamaño_zero"
         android:layout_marginTop="@dimen/gap_medium"
         android:layout_weight="1"
         tools:layout="@layout/fragment_registro_reserva" />

@@ -24,7 +24,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="@dimen/elevation_card"
             android:text="@string/subtitulo_registro_usuario"
             android:textColor="@color/gris_texto"
             android:textSize="@dimen/text_caption" />
@@ -112,7 +112,7 @@
 
             <RadioButton
                 android:id="@+id/radioOperador"
-                android:layout_width="0dp"
+                android:layout_width="@dimen/tamaño_zero"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:checked="true"
@@ -121,7 +121,7 @@
 
             <RadioButton
                 android:id="@+id/radioProfesor"
-                android:layout_width="0dp"
+                android:layout_width="@dimen/tamaño_zero"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="@string/rol_profesor"
@@ -129,7 +129,7 @@
 
             <RadioButton
                 android:id="@+id/radioAdmin"
-                android:layout_width="0dp"
+                android:layout_width="@dimen/tamaño_zero"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="@string/rol_administrador"
@@ -167,7 +167,7 @@
 
         <View
             android:layout_width="match_parent"
-            android:layout_height="1dp"
+            android:layout_height="@dimen/stroke_width"
             android:layout_marginVertical="@dimen/gap_large"
             android:background="@color/gris_borde" />
 

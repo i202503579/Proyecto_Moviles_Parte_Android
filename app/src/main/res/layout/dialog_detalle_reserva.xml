@@ -10,7 +10,7 @@
         android:id="@+id/textViewCanchaDialog"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="@color/azul_oscuro"
+        android:textColor="@color/color_titulos"
         android:textSize="@dimen/text_dialog_title"
         android:textStyle="bold" />
 
@@ -19,7 +19,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/gap_small"
-        android:textColor="@color/gris_texto"
+        android:textColor="@color/color_mensajes"
         android:textSize="@dimen/text_body" />
 
     <TextView
@@ -27,15 +27,15 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/gap_small"
-        android:textColor="@color/gris_texto"
+        android:textColor="@color/color_mensajes"
         android:textSize="@dimen/text_body" />
     <TextView
         android:id="@+id/textViewNotaDialog"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="@dimen/dialog_padding"
         android:textColor="@color/gris_texto"
-        android:textSize="14sp"
+        android:textSize="@dimen/text_body"
         android:textStyle="italic"
          />
 
@@ -55,7 +55,7 @@
         android:layout_marginTop="@dimen/gap_small"
         app:cardBackgroundColor="@color/azul_superficie"
         app:cardCornerRadius="@dimen/card_radius"
-        app:cardElevation="0dp"
+        app:cardElevation="@dimen/tamaño_zero"
         app:strokeColor="@color/gris_borde"
         app:strokeWidth="@dimen/stroke_width">
 

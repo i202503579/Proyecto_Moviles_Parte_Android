@@ -6,7 +6,7 @@
     android:layout_marginBottom="@dimen/gap_small"
     app:cardBackgroundColor="@color/blanco"
     app:cardCornerRadius="@dimen/card_radius"
-    app:cardElevation="0dp"
+    app:cardElevation="@dimen/tamaño_zero"
     app:strokeColor="@color/gris_borde"
     app:strokeWidth="@dimen/stroke_width">
 
@@ -28,7 +28,7 @@
             android:id="@+id/textViewTelefonoApoderado"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
+            android:layout_marginTop="@dimen/card_elevation"
             android:textColor="@color/gris_texto"
             android:textSize="@dimen/text_caption" />
 
@@ -41,7 +41,7 @@
 
             <RadioButton
                 android:id="@+id/radioPresente"
-                android:layout_width="0dp"
+                android:layout_width="@dimen/tamaño_zero"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="@string/estado_presente"
@@ -51,7 +51,7 @@
 
             <RadioButton
                 android:id="@+id/radioFalta"
-                android:layout_width="0dp"
+                android:layout_width="@dimen/tamaño_zero"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="@string/estado_falta"
@@ -61,7 +61,7 @@
 
             <RadioButton
                 android:id="@+id/radioJustificado"
-                android:layout_width="0dp"
+                android:layout_width="@dimen/tamaño_zero"
                 android:layout_height="wrap_content"
                 android:layout_weight="1.2"
                 android:text="@string/estado_justificado"

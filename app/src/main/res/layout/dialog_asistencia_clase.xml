@@ -10,7 +10,7 @@
         android:id="@+id/textViewDetalleClaseHeader"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="@color/azul_oscuro"
+        android:textColor="@color/color_titulos"
         android:textSize="@dimen/text_body"
         android:textStyle="bold" />
 
@@ -18,8 +18,8 @@
         android:id="@+id/textViewSubdetalleClaseHeader"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:textColor="@color/gris_texto"
+        android:layout_marginTop="@dimen/elevation_card"
+        android:textColor="@color/color_mensajes"
         android:textSize="@dimen/text_caption" />
 
     <com.google.android.material.button.MaterialButton
@@ -46,7 +46,8 @@
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerViewAlumnosAsistencia"
         android:layout_width="match_parent"
-        android:layout_height="300dp"
+        android:layout_height="@dimen/tamaño_zero"
+        android:layout_weight="1"
         android:layout_marginTop="@dimen/gap_small"
         tools:listitem="@layout/item_alumno_asistencia" />
 
@@ -56,7 +57,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/gap_small"
         android:text="@string/check_completar_clase"
-        android:textColor="@color/azul_oscuro"
+        android:textColor="@color/color_mensajes"
         android:textSize="@dimen/text_caption"
         android:textStyle="bold" />
 

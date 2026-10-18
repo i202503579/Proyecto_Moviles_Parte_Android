@@ -45,8 +45,8 @@
 
         <Spinner
             android:id="@+id/spinnerProfesor"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_width="@dimen/tamaño_zero"
+            android:layout_height="@dimen/tamaño_cuarenta"
             android:layout_weight="1" />
     </LinearLayout>
 
@@ -98,7 +98,7 @@
 
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="0dp"
+        android:layout_height="@dimen/tamaño_zero"
         android:layout_weight="1">
 
         <androidx.recyclerview.widget.RecyclerView

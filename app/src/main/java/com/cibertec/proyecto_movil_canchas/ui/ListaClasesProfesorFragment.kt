@@ -1,7 +1,9 @@
 package com.cibertec.proyecto_movil_canchas.ui
 
 import android.content.Context
+import android.health.connect.datatypes.ExerciseRoute
 import android.icu.text.DateFormat
+import android.location.Location
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -9,6 +11,7 @@ import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.edit
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -19,11 +22,17 @@ import com.cibertec.proyecto_movil_canchas.data.AcademiaStore
 import com.cibertec.proyecto_movil_canchas.data.SessionManager
 import com.cibertec.proyecto_movil_canchas.databinding.DialogAsistenciaClaseBinding
 import com.cibertec.proyecto_movil_canchas.databinding.FragmentListaClasesProfesorBinding
+import com.cibertec.proyecto_movil_canchas.location.LocationCliente
+import com.cibertec.proyecto_movil_canchas.location.ReglasUbicación
+import com.cibertec.proyecto_movil_canchas.location.ResultadoZona
+import com.cibertec.proyecto_movil_canchas.model.AlumnoAsistenciaItem
 import com.cibertec.proyecto_movil_canchas.model.ClaseAcademia
 import com.cibertec.proyecto_movil_canchas.model.FiltroEstadoClase
 import com.cibertec.proyecto_movil_canchas.model.ProfesorItem
+import com.cibertec.proyecto_movil_canchas.util.PermissionHelper
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.util.Date
+import kotlin.math.roundToInt
 
 class ListaClasesProfesorFragment : Fragment() {
 
@@ -33,15 +42,27 @@ class ListaClasesProfesorFragment : Fragment() {
     private lateinit var academiaStore: AcademiaStore
     private lateinit var sessionManager: SessionManager
     private lateinit var claseAdapter: ClaseProfesorAdapter
-
     private var profesoresDisponibles: List<ProfesorItem> = emptyList()
     private var idProfesorSeleccionado: Int? = null
     private var filtroEstado: FiltroEstadoClase = FiltroEstadoClase.PROGRAMADAS
+    private lateinit var locationCliente: LocationCliente
+    private var accionPendienteUbicacion: (() -> Unit)? = null
+    private val permisoUbicacionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ){
+        if (PermissionHelper.hasFineLocationPermission(requireContext())){
+            accionPendienteUbicacion?.invoke()
+        } else{
+            Toast.makeText(requireContext(), R.string.error_permiso_ubicacion, Toast.LENGTH_LONG).show()
+        }
+        accionPendienteUbicacion = null
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         academiaStore = AcademiaStore(requireContext().applicationContext)
         sessionManager = SessionManager(requireContext().applicationContext)
+        locationCliente = LocationCliente(requireContext().applicationContext)
     }
 
     override fun onCreateView(
@@ -255,11 +276,8 @@ class ListaClasesProfesorFragment : Fragment() {
         if (!soloLectura && alumnos.isNotEmpty()) {
             builder.setPositiveButton(R.string.dialogo_guardar) { _, _ ->
                 val marcarCompletada = dialogBinding.checkBoxCompletarClase.isChecked
-                guardarYSincronizarAsistencia(
-                    clase.idClase,
-                    adapterAlumnos.obtenerListaActualizada(),
-                    marcarCompletada
-                )
+                val alumnosMarcados = adapterAlumnos.obtenerListaActualizada()
+                verificarUbicacionYGuardar(clase.idClase, alumnosMarcados, marcarCompletada)
             }
         } else if (soloLectura) {
             Toast.makeText(
@@ -268,10 +286,68 @@ class ListaClasesProfesorFragment : Fragment() {
                 Toast.LENGTH_SHORT
             ).show()
         }
-
         builder.show()
     }
+    private fun verificarUbicacionYGuardar(
+        idClase: Int,
+        alumnos: List<AlumnoAsistenciaItem>,
+        marcarCompletada: Boolean
+    ){
+        if (!sessionManager.esProfesor()){
+            guardarYSincronizarAsistencia(idClase, alumnos, marcarCompletada)
+            return
+        }
+        if (!PermissionHelper.hasFineLocationPermission(requireContext())){
+            accionPendienteUbicacion = {
+                verificarUbicacionYGuardar(idClase, alumnos, marcarCompletada)
+            }
+            permisoUbicacionLauncher.launch(PermissionHelper.locationPermission)
+            return
+        }
+        if (!locationCliente.isLocationEnabled()){
+            Toast.makeText(requireContext(), R.string.error_gps_apagado, Toast.LENGTH_LONG).show()
+            return
+        }
+        binding.progressIndicatorClases.visibility = View.VISIBLE
+        Toast.makeText(requireContext(), R.string.verificando_ubicacion, Toast.LENGTH_SHORT).show()
+        locationCliente.requestCurrentLocation(
+            onSuccess = { ubicacion ->
+                alRecibirUbicacion(ubicacion, idClase,alumnos, marcarCompletada)
+            },
+            onError = { alFallarUbicacion() }
+        )
+    }
+    private fun alRecibirUbicacion(
+        ubicacion: Location,
+        idClase: Int,
+        alumnos: List<AlumnoAsistenciaItem>,
+        marcarCompletada: Boolean
+    ){
+        val bindingActual = _binding ?: return
+        bindingActual.progressIndicatorClases.visibility = View.GONE
 
+        val evaluacion = ReglasUbicación.evaluar(ubicacion)
+        when (evaluacion.resultado){
+            ResultadoZona.DENTRO -> guardarYSincronizarAsistencia(idClase, alumnos, marcarCompletada)
+            ResultadoZona.FUERA -> Toast.makeText(
+                requireContext(),
+                getString(R.string.error_fuera_de_zona, evaluacion.distanciaMetros.roundToInt()),
+                Toast.LENGTH_LONG
+            ).show()
+            ResultadoZona.IMPRECISA -> Toast.makeText(
+                requireContext(),
+                getString(R.string.error_ubicacion_imprecisa, evaluacion.precisionMetros.roundToInt()),
+                Toast.LENGTH_LONG
+            ).show()
+            ResultadoZona.UBICACION_FALSA ->
+                Toast.makeText(requireContext(), R.string.error_ubicacion_falsa, Toast.LENGTH_LONG).show()
+        }
+    }
+    private fun alFallarUbicacion(){
+        val bindingActual = _binding ?: return
+        bindingActual.progressIndicatorClases.visibility = View.GONE
+        Toast.makeText(requireContext(), R.string.error_ubicacion_no_disponible, Toast.LENGTH_LONG).show()
+    }
     private fun guardarYSincronizarAsistencia(
         idClase: Int,
         alumnos: List<com.cibertec.proyecto_movil_canchas.model.AlumnoAsistenciaItem>,
@@ -318,6 +394,7 @@ class ListaClasesProfesorFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        locationCliente.stopUpdates()
         _binding = null
     }
 

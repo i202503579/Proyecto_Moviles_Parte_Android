@@ -247,9 +247,15 @@
 
     <string name="usuarios_sincronizados_azure">Usuarios sincronizados con Azure</string>
     <string name="formato_usuarios_activos_firebase">Usuarios activos en Firebase: %1$d</string>
-
     <string name="reserva_guardada_azure">Reserva guardada y sincronizada con Azure</string>
     <string name="reserva_guardada_local">Reserva guardada localmente (pendiente de sincronización)</string>
-
     <string name="usuario_por_defecto">Usuario</string>
+
+    <string name="verificando_ubicacion">Verificando tu ubicación…</string>
+    <string name="error_permiso_ubicacion">Se necesita el permiso de ubicación precisa para registrar la asistencia</string>
+    <string name="error_gps_apagado">Activa el GPS para registrar la asistencia</string>
+    <string name="error_ubicacion_no_disponible">No se pudo obtener tu ubicación. Sal a un lugar abierto e inténtalo de nuevo</string>
+    <string name="error_ubicacion_imprecisa">Tu ubicación es muy imprecisa (±%1$d m). Sal a un lugar abierto e inténtalo de nuevo</string>
+    <string name="error_ubicacion_falsa">Se detectó una ubicación simulada. No se puede registrar la asistencia</string>
+    <string name="error_fuera_de_zona">Estás a %1$d m del complejo. Debes estar en la cancha para registrar la asistencia</string>
 </resources>
