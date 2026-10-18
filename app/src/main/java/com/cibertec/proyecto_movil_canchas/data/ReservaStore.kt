@@ -26,6 +26,8 @@ class ReservaStore(context: Context) {
         val db = dbHelper.writableDatabase
         if (horas !in ReglasReservas.HORAS_PERMITIDAS) return ResultadoReserva.Error
         if (horaInicio < ReglasReservas.inicioMinimoReserva()) return ResultadoReserva.FechaPasada
+        if (!ReglasReservas.dentroDeHorarioAtencion(horaInicio, horas)) return ResultadoReserva.FueraDeHorario
+        if (horaInicio < ReglasReservas.inicioMinimoReserva()) return ResultadoReserva.FechaPasada
         db.beginTransaction()
         try {
             if (hayChoqueDeHorario(db, cancha.id, horaInicio, horaFin)) {

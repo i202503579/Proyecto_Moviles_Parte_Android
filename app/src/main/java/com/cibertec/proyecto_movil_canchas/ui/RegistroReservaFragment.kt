@@ -105,6 +105,12 @@ class RegistroReservaFragment : Fragment() {
                                 R.string.error_fecha_pasada,
                                 Toast.LENGTH_LONG
                             ).show()
+                        } else if (!ReglasReservas.dentroDeHorarioAtencion(candidato.timeInMillis, 1)) {
+                            Toast.makeText(
+                                requireContext(),
+                                getString(R.string.error_fuera_de_horario, ReglasReservas.HORA_APERTURA, ReglasReservas.HORA_CIERRE),
+                                Toast.LENGTH_LONG
+                            ).show()
                         } else {
                             inicioSeleccionado = candidato
                             actualizarTextoHorario()
@@ -278,6 +284,12 @@ class RegistroReservaFragment : Fragment() {
                         Toast.makeText(
                             requireContext(),
                             R.string.error_fecha_pasada,
+                            Toast.LENGTH_LONG
+                        ).show()
+                    ResultadoReserva.FueraDeHorario ->
+                        Toast.makeText(
+                            requireContext(),
+                            getString(R.string.error_fuera_de_horario, ReglasReservas.HORA_APERTURA, ReglasReservas.HORA_CIERRE),
                             Toast.LENGTH_LONG
                         ).show()
                     ResultadoReserva.Error ->
