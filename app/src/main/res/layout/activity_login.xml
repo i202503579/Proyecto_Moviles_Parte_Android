@@ -114,7 +114,7 @@
                     android:backgroundTint="@color/verde_principal"
                     android:text="@string/login_boton_ingresar"
                     android:textAllCaps="false"
-                    android:textSize="@dimen/card_radius" />
+                    android:textSize="@dimen/text_button" />
 
                 <com.google.android.material.progressindicator.LinearProgressIndicator
                     android:id="@+id/progressLogin"

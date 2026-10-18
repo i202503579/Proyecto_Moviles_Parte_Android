@@ -258,4 +258,12 @@
     <string name="error_ubicacion_imprecisa">Tu ubicación es muy imprecisa (±%1$d m). Sal a un lugar abierto e inténtalo de nuevo</string>
     <string name="error_ubicacion_falsa">Se detectó una ubicación simulada. No se puede registrar la asistencia</string>
     <string name="error_fuera_de_zona">Estás a %1$d m del complejo. Debes estar en la cancha para registrar la asistencia</string>
+
+    <!-- Credenciales de prueba accesos rápidos -->
+    <string name="login_test_operador_user">operador1</string>
+    <string name="login_test_operador_pass">123456</string>
+    <string name="login_test_profesor_user">profe_miguel</string>
+    <string name="login_test_profesor_pass">123456</string>
+    <string name="login_test_admin_user">admin</string>
+    <string name="login_test_admin_pass">admin123</string>
 </resources>

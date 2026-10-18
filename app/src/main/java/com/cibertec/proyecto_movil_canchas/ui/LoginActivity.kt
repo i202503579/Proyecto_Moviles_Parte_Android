@@ -48,21 +48,20 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
-    @SuppressLint("SetTextI18n")
     private fun configurarAccesosRapidos() {
         binding.chipOperador.setOnClickListener {
-            binding.editTextUsuario.setText("operador1")
-            binding.editTextPassword.setText("123456")
+            binding.editTextUsuario.setText(R.string.login_test_operador_user)
+            binding.editTextPassword.setText(R.string.login_test_operador_pass)
             binding.textViewErrorLogin.visibility = View.GONE
         }
         binding.chipProfesor.setOnClickListener {
-            binding.editTextUsuario.setText("profe_miguel")
-            binding.editTextPassword.setText("123456")
+            binding.editTextUsuario.setText(R.string.login_test_profesor_user)
+            binding.editTextPassword.setText(R.string.login_test_profesor_pass)
             binding.textViewErrorLogin.visibility = View.GONE
         }
         binding.chipAdmin.setOnClickListener {
-            binding.editTextUsuario.setText("admin")
-            binding.editTextPassword.setText("admin123")
+            binding.editTextUsuario.setText(R.string.login_test_admin_user)
+            binding.editTextPassword.setText(R.string.login_test_admin_pass)
             binding.textViewErrorLogin.visibility = View.GONE
         }
     }

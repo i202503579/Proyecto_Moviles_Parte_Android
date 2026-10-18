@@ -6,7 +6,8 @@
     <dimen name="gap_small">6dp</dimen>
     <dimen name="chip_padding_vertical">6dp</dimen>
     <dimen name="dialog_padding">8dp</dimen>
-    <dimen name="text_button_mini">11dp</dimen>
+    <dimen name="text_button_mini">11sp</dimen>
+    <dimen name="text_button">16sp</dimen>
     <dimen name="gap_medium">12dp</dimen>
     <dimen name="chip_padding_horizontal">12dp</dimen>
     <dimen name="text_caption">12sp</dimen>
