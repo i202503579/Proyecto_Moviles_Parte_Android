@@ -11,8 +11,8 @@
     <color name="gris_borde">#C8D7E6</color>
     <color name="error">#BA1A1A</color>
     <color name="negro">#212121</color>
-    <color name="color_titulos">#A78BFA</color>
-    <color name="color_mensajes">#F4F4F5</color>
+    <color name="color_titulos">#1B5E20</color>
+    <color name="color_mensajes">#334E68</color>
     <color name="semaforo_neutro">#8293A5</color>
     <color name="semaforo_verde">#2E7D5B</color>
     <color name="semaforo_amarillo">#D89000</color>

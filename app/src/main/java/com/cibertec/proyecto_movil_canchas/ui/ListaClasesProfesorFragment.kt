@@ -189,16 +189,28 @@ class ListaClasesProfesorFragment : Fragment() {
 
         Thread {
             val resultado = academiaStore.sincronizarConWeb()
+
+            val cantidadMostrar = if (resultado.isSuccess) {
+                val idFiltro = if (sessionManager.esProfesor()) {
+                    sessionManager.obtenerIdUsuario()
+                } else {
+                    idProfesorSeleccionado
+                }
+                academiaStore.obtenerClases(idFiltro, FiltroEstadoClase.TODAS).size
+            } else {
+                0
+            }
+
             activity?.runOnUiThread {
                 val bindingActual = _binding ?: return@runOnUiThread
                 bindingActual.buttonSincronizarClases.isEnabled = true
 
-                resultado.onSuccess { cantidad ->
+                resultado.onSuccess {
                     guardarMarcaSincronizacion()
                     mostrarUltimaSincronizacion()
                     Toast.makeText(
                         requireContext(),
-                        getString(R.string.sincronizacion_clases_exito, cantidad),
+                        getString(R.string.sincronizacion_clases_exito, cantidadMostrar),
                         Toast.LENGTH_SHORT
                     ).show()
                     cargarProfesoresYClasesLocales()

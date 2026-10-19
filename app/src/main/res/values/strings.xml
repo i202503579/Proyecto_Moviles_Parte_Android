@@ -35,7 +35,7 @@
     <string name="prestamo_pendiente">Préstamo de balón (pendiente de implementar)</string>
     <string name="dialogo_eliminar_titulo">Eliminar reserva</string>
     <string name="dialogo_eliminar_mensaje">¿Desea eliminar la reserva de %2$s en %1$s?</string>
-    <string name="dialogo_formato_horario">Su horario es desde %1$s hasta las %2$s</string>
+    <string name="dialogo_formato_horario">Su horario es desde %1$s hasta las %2$s.</string>
     <string name="dialogo_eliminar_confirmar">Eliminar</string>
     <string name="dialogo_cambiar_nombre_cliente">Cambiar nombre del cliente %1$s</string>
     <string name="dialogo_mensaje_modificar">Modificar el nombre del cliente para esta reserva</string>
