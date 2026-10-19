@@ -203,32 +203,10 @@ class AcademiaStore(context: Context) {
             db.endTransaction()
         }
 
-        // Subir inmediatamente a Firebase Firestore
+        // Subir inmediatamente a Firebase Firestore en segundo plano (sin marcar SYNCED=1 en SQLite, ya que SYNCED representa la sincronización con Azure)
         if (exitoLocal) {
-            val guardadoFirestore = esperarFirebase(20, false) {
+            esperarFirebase(15, false) {
                 FirebaseManager.guardarAsistencias(idClase, alumnos, marcarCompletada)
-            }
-            if (guardadoFirestore) {
-                val cv = ContentValues().apply {
-                    put(AsistenciaContrato.COLUMNA_SYNCED, 1)
-                }
-                db.update(
-                    AsistenciaContrato.TABLA,
-                    cv,
-                    "${AsistenciaContrato.COLUMNA_ID_CLASE} = ?",
-                    arrayOf(idClase.toString())
-                )
-                if (marcarCompletada) {
-                    val cvC = ContentValues().apply {
-                        put(ClaseContrato.COLUMNA_SYNCED, 1)
-                    }
-                    db.update(
-                        ClaseContrato.TABLA,
-                        cvC,
-                        "${ClaseContrato.COLUMNA_ID} = ?",
-                        arrayOf(idClase.toString())
-                    )
-                }
             }
         }
         return exitoLocal
@@ -392,7 +370,7 @@ class AcademiaStore(context: Context) {
         clasesRemotas.size
     }
 
-    fun subirPendientesAAzure() {
+    fun subirPendientesAAzure(): Boolean {
         val db = dbHelper.writableDatabase
 
         val pendientesAsist = mutableListOf<Triple<Int, Int, AsistenciaDTO>>()
@@ -424,30 +402,6 @@ class AcademiaStore(context: Context) {
             }
         }
 
-        // 1. Sincronizar asistencias pendientes con Firebase Firestore
-        for ((idLocal, _, dto) in pendientesAsist) {
-            val exitoFirestore = esperarFirebase(15, false) {
-                FirebaseManager.guardarAsistenciaIndividual(
-                    idClase = dto.idClase,
-                    idAlumno = dto.idAlumno,
-                    nombreAlumno = "",
-                    estadoAsistencia = dto.estadoAsistencia
-                )
-            }
-            if (!exitoFirestore) break   // sin red: no insistir con el resto
-
-            val cv = ContentValues().apply {
-                put(AsistenciaContrato.COLUMNA_SYNCED, 1)
-            }
-            db.update(
-                AsistenciaContrato.TABLA,
-                cv,
-                "${AsistenciaContrato.COLUMNA_ID_LOCAL} = ?",
-                arrayOf(idLocal.toString())
-            )
-        }
-
-        // 2. Sincronizar clases pendientes con Firebase Firestore
         val clasesPendientes = mutableListOf<ClaseDTO>()
         db.query(
             ClaseContrato.TABLA,
@@ -482,76 +436,89 @@ class AcademiaStore(context: Context) {
             }
         }
 
-        for (claseDto in clasesPendientes) {
-            val exitoFirestore = esperarFirebase(15, false) {
-                FirebaseManager.actualizarEstadoClase(claseDto.idClase, claseDto.estadoClase)
-            }
-            if (!exitoFirestore) break   // sin red: no insistir con el resto
-
-            val cv = ContentValues().apply {
-                put(ClaseContrato.COLUMNA_SYNCED, 1)
-            }
-            db.update(
-                ClaseContrato.TABLA,
-                cv,
-                "${ClaseContrato.COLUMNA_ID} = ?",
-                arrayOf(claseDto.idClase.toString())
-            )
+        if (pendientesAsist.isEmpty() && clasesPendientes.isEmpty()) {
+            return true
         }
 
-        // 3. Intento secundario hacia Azure if disponibilidad == true
+        // 1. Sincronizar hacia Azure Web API primero (para persistir en Azure SQL y reflejarse en la web)
+        var exitoAzure = false
         runCatching {
             val api = RetrofitClient.api
-            val asistenciasRemotas = runCatching {
-                api.obtenerAsistencias().execute().body().orEmpty()
-            }.getOrDefault(emptyList())
+            val respAsistencias = api.obtenerAsistencias().execute()
+            if (respAsistencias.isSuccessful) {
+                val asistenciasRemotas = respAsistencias.body().orEmpty()
 
-            for ((idLocal, idServGuardado, dto) in pendientesAsist) {
-                val existenteRemoto = asistenciasRemotas.firstOrNull {
-                    it.idClase == dto.idClase && it.idAlumno == dto.idAlumno
-                }
-                val idReal = existenteRemoto?.idAsistencia ?: idServGuardado
-                val respuesta = if (idReal > 0) {
-                    api.actualizarAsistencia(dto.copy(idAsistencia = idReal)).execute()
-                } else {
-                    api.registrarAsistencia(dto.copy(idAsistencia = 0)).execute()
-                }
-                if (respuesta.isSuccessful) {
-                    val cv = ContentValues().apply {
-                        put(AsistenciaContrato.COLUMNA_SYNCED, 1)
+                var todasAsistenciasOk = true
+                for ((idLocal, idServGuardado, dto) in pendientesAsist) {
+                    val existenteRemoto = asistenciasRemotas.firstOrNull {
+                        it.idClase == dto.idClase && it.idAlumno == dto.idAlumno
                     }
-                    db.update(
-                        AsistenciaContrato.TABLA,
-                        cv,
-                        "${AsistenciaContrato.COLUMNA_ID_LOCAL} = ?",
-                        arrayOf(idLocal.toString())
-                    )
+                    val idReal = existenteRemoto?.idAsistencia ?: idServGuardado
+                    val respuesta = if (idReal > 0) {
+                        api.actualizarAsistencia(dto.copy(idAsistencia = idReal)).execute()
+                    } else {
+                        api.registrarAsistencia(dto.copy(idAsistencia = 0)).execute()
+                    }
+                    if (respuesta.isSuccessful) {
+                        val cv = ContentValues().apply {
+                            put(AsistenciaContrato.COLUMNA_SYNCED, 1)
+                            if (idReal > 0) {
+                                put(AsistenciaContrato.COLUMNA_ID_SERVIDOR, idReal)
+                            }
+                        }
+                        db.update(
+                            AsistenciaContrato.TABLA,
+                            cv,
+                            "${AsistenciaContrato.COLUMNA_ID_LOCAL} = ?",
+                            arrayOf(idLocal.toString())
+                        )
+                    } else {
+                        todasAsistenciasOk = false
+                    }
                 }
+
+                // 2. Sincronizar clases pendientes a Azure (DESPUÉS de guardar asistencias por el trigger de SQL)
+                var todasClasesOk = true
+                for (claseDto in clasesPendientes) {
+                    val respuestaClase = api.actualizarClase(claseDto).execute()
+                    if (respuestaClase.isSuccessful) {
+                        val cv = ContentValues().apply {
+                            put(ClaseContrato.COLUMNA_SYNCED, 1)
+                        }
+                        db.update(
+                            ClaseContrato.TABLA,
+                            cv,
+                            "${ClaseContrato.COLUMNA_ID} = ?",
+                            arrayOf(claseDto.idClase.toString())
+                        )
+                    } else {
+                        todasClasesOk = false
+                    }
+                }
+
+                exitoAzure = todasAsistenciasOk && todasClasesOk
             }
+        }
 
-            // 1. Sincronizar asistencias pendientes con Firebase Firestore
-            for ((idLocal, _, dto) in pendientesAsist) {
-                val exitoFirestore = esperarFirebase(15, false) {
-                    FirebaseManager.guardarAsistenciaIndividual(
-                        idClase = dto.idClase,
-                        idAlumno = dto.idAlumno,
-                        nombreAlumno = "",
-                        estadoAsistencia = dto.estadoAsistencia
-                    )
-                }
-                if (!exitoFirestore) break   // sin red: no insistir con el resto
-
-                val cv = ContentValues().apply {
-                    put(AsistenciaContrato.COLUMNA_SYNCED, 1)
-                }
-                db.update(
-                    AsistenciaContrato.TABLA,
-                    cv,
-                    "${AsistenciaContrato.COLUMNA_ID_LOCAL} = ?",
-                    arrayOf(idLocal.toString())
+        // 3. Sincronizar también con Firebase Firestore
+        for ((_, _, dto) in pendientesAsist) {
+            esperarFirebase(10, false) {
+                FirebaseManager.guardarAsistenciaIndividual(
+                    idClase = dto.idClase,
+                    idAlumno = dto.idAlumno,
+                    nombreAlumno = "",
+                    estadoAsistencia = dto.estadoAsistencia
                 )
             }
         }
+
+        for (claseDto in clasesPendientes) {
+            esperarFirebase(10, false) {
+                FirebaseManager.actualizarEstadoClase(claseDto.idClase, claseDto.estadoClase)
+            }
+        }
+
+        return exitoAzure
     }
     // Espera a Firebase con un tiempo máximo.
     private fun <T> esperarFirebase(segundos: Long, valorPorDefecto: T, bloque: suspend () -> T): T =

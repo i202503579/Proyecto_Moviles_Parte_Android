@@ -356,13 +356,15 @@ class ListaClasesProfesorFragment : Fragment() {
         binding.progressIndicatorClases.visibility = View.VISIBLE
         Thread {
             val guardadoOk = academiaStore.guardarAsistenciasLocal(idClase, alumnos, marcarCompletada)
-            val subidoNube = runCatching {
-                academiaStore.subirPendientesAAzure()
-                true
-            }.getOrDefault(false)
+            val subidoNube = if (guardadoOk) {
+                runCatching {
+                    academiaStore.subirPendientesAAzure()
+                }.getOrDefault(false)
+            } else false
 
             activity?.runOnUiThread {
-                if (_binding == null) return@runOnUiThread
+                val bindingActual = _binding ?: return@runOnUiThread
+                bindingActual.progressIndicatorClases.visibility = View.GONE
                 if (guardadoOk) {
                     val msg = if (subidoNube) {
                         R.string.asistencia_guardada_nube

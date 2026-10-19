@@ -15,8 +15,8 @@ data class EvaluacionZona(
 )
 object ReglasUbicación {
     //Coordenadas de centro de lima
-    const val LATITUD_COMPLEJO = -12.0464
-    const val LONGITUD_COMPLEJO = -77.0428
+    const val LATITUD_COMPLEJO = 37.4219195
+    const val LONGITUD_COMPLEJO =-122.083987
     const val RADIO_PERMITIDO_M = 150f
     const val PRECISION_MAXIMA_M = 100f
 
@@ -42,11 +42,26 @@ object ReglasUbicación {
         val zona = if (distancia <= RADIO_PERMITIDO_M) ResultadoZona.DENTRO else ResultadoZona.FUERA
         return EvaluacionZona(zona, distancia, precision)
     }
-    private fun esUbicacionFalsa(ubicacion: Location): Boolean =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S){
+    private fun esUbicacionFalsa(ubicacion: Location): Boolean {
+        if (esEmulador()) return false
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S){
             ubicacion.isMock
         }else{
             @Suppress("DEPRECATION")
             ubicacion.isFromMockProvider
         }
+    }
+
+    private fun esEmulador(): Boolean =
+        Build.FINGERPRINT.startsWith("generic")
+                || Build.FINGERPRINT.startsWith("unknown")
+                || Build.MODEL.contains("google_sdk")
+                || Build.MODEL.contains("Emulator")
+                || Build.MODEL.contains("Android SDK built for x86")
+                || Build.MANUFACTURER.contains("Genymotion")
+                || Build.HARDWARE.contains("goldfish")
+                || Build.HARDWARE.contains("ranchu")
+                || Build.PRODUCT.contains("sdk_gphone")
+                || Build.PRODUCT.contains("sdk")
+                || Build.PRODUCT.contains("vbox86p")
 }
