@@ -28,7 +28,7 @@ class ReservaStore(context: Context) {
         if (horaInicio < ReglasReservas.inicioMinimoReserva()) return ResultadoReserva.FechaPasada
         if (!ReglasReservas.dentroDeHorarioAtencion(horaInicio, horas)) return ResultadoReserva.FueraDeHorario
         if (horaInicio < ReglasReservas.inicioMinimoReserva()) return ResultadoReserva.FechaPasada
-        db.beginTransaction()
+        db.beginTransaction() // all lo que este dentro es parte de la transaction
         try {
             if (hayChoqueDeHorario(db, cancha.id, horaInicio, horaFin)) {
                 return ResultadoReserva.HorarioOcupado
@@ -48,11 +48,11 @@ class ReservaStore(context: Context) {
             val id = db.insert(ReservaContrato.TABLA_RESERVAS, null, valores)
             if (id == -1L) return ResultadoReserva.Error
 
-            db.setTransactionSuccessful()
+            db.setTransactionSuccessful() // marca la transaction como exitosa
             return ResultadoReserva.EXITO(id)
         } catch (_: Exception) {
             return ResultadoReserva.Error
-        } finally {
+        } finally { // garantiza que endTransaction se ejecute
             db.endTransaction() // si no hubo setTransactionSuccessful(), hace rollback
         }
     }

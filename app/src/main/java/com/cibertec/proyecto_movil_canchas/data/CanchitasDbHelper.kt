@@ -141,7 +141,7 @@ class CanchitasDbHelper(context: Context) :
         private const val DATABASE_NAME = "canchitas_local.db"
         private const val DATABASE_VERSION = 5
 
-        @Volatile
+        @Volatile //Singleton
         private var instancia: CanchitasDbHelper? = null
 
         fun getInstance(context: Context): CanchitasDbHelper =

@@ -337,6 +337,7 @@ class SyncRepository(context: Context) {
                         for (doc in snapshot.documents) {
                             val id = (doc.getLong("idReserva") ?: 0L).toInt()
                             if (id <= 0) continue
+                            if (reservaLocalPendiente(db, id)) continue
                             val idCancha = (doc.getLong("idCancha") ?: 1L).toInt()
                             val nombreCli = doc.getString("nombreCliente").orEmpty()
                             val docCli = doc.getString("numeroDocumento").orEmpty()
@@ -356,12 +357,18 @@ class SyncRepository(context: Context) {
                             val monto = doc.getDouble("montoRecibido") ?: 0.0
                             val estado = doc.getString("estadoReserva") ?: "Pendiente"
                             val idUsuario = (doc.getLong("idUsuario") ?: 1L).toInt()
+                            val idServidorAzure = doc.getLong("idServidorAzure")?.toInt()?.takeIf { it > 0 }
                             val idClienteLocal =
                                 obtenerOCrearCliente(nombreCli, docCli, telCli, tipoCli)
 
                             val valores = ContentValues().apply {
                                 put(ReservaContrato.COLUMNA_ID, id)
-                                put(ReservaContrato.COLUMNA_ID_SERVIDOR, id)
+                                // El id del documento es el id LOCAL, no el de Azure: nunca se usa como id_servidor
+                                if (idServidorAzure != null) {
+                                    put(ReservaContrato.COLUMNA_ID_SERVIDOR, idServidorAzure)
+                                } else {
+                                    putNull(ReservaContrato.COLUMNA_ID_SERVIDOR)
+                                }
                                 put(ReservaContrato.COLUMNA_ID_CANCHA, idCancha)
                                 put(ReservaContrato.COLUMNA_ID_CLIENTE, idClienteLocal)
                                 put(ReservaContrato.COLUMNA_ID_USUARIO, idUsuario)
@@ -430,12 +437,15 @@ class SyncRepository(context: Context) {
                         )
 
                         if (filas == 0) {
-                            filas = db.update(
+                            val idLocal = db.insert(
                                 ReservaContrato.TABLA_RESERVAS,
-                                valores,
-                                "${ReservaContrato.COLUMNA_ID_CANCHA} = ? AND ABS(${ReservaContrato.COLUMNA_HORA_INICIO} - ?) < 60000",
-                                arrayOf(r.idCancha.toString(), inicioMillis.toString())
+                                null,
+                                valores
                             )
+
+                            if (idLocal == -1L) {
+                                Log.e(TAG, "No se pudo importar la reserva Azure ${r.idReserva}")
+                            }
                         }
 
                         if (filas == 0) {
@@ -700,9 +710,10 @@ class SyncRepository(context: Context) {
     suspend fun sincronizarActualizacionReserva(idReservaLocal: Int): Boolean {
         return try {
             val db = dbHelper.writableDatabase
+
             var idServidor = 0
-            var idCancha = 1
-            var idClienteLocal = 1
+            var idCancha = 0
+            var idClienteLocal = 0
             var horaInicio = 0L
             var horaFin = 0L
             var precio = 0.0
@@ -711,14 +722,29 @@ class SyncRepository(context: Context) {
             var idUsuario = 1
 
             val sql = """
-                SELECT id_servidor, id_cancha, id_cliente, hora_inicio, hora_fin, precio_reserva, monto_recibido, estado, id_usuario
-                FROM ${ReservaContrato.TABLA_RESERVAS}
-                WHERE ${ReservaContrato.COLUMNA_ID} = ?
-            """.trimIndent()
+            SELECT
+                ${ReservaContrato.COLUMNA_ID_SERVIDOR},
+                ${ReservaContrato.COLUMNA_ID_CANCHA},
+                ${ReservaContrato.COLUMNA_ID_CLIENTE},
+                ${ReservaContrato.COLUMNA_HORA_INICIO},
+                ${ReservaContrato.COLUMNA_HORA_FIN},
+                ${ReservaContrato.COLUMNA_PRECIO},
+                ${ReservaContrato.COLUMNA_MONTO_RECIBIDO},
+                ${ReservaContrato.COLUMNA_ESTADO},
+                ${ReservaContrato.COLUMNA_ID_USUARIO}
+            FROM ${ReservaContrato.TABLA_RESERVAS}
+            WHERE ${ReservaContrato.COLUMNA_ID} = ?
+        """.trimIndent()
 
-            db.rawQuery(sql, arrayOf(idReservaLocal.toString())).use { cursor ->
-                if (cursor.moveToFirst()) {
-                    idServidor = if (!cursor.isNull(0)) cursor.getInt(0) else 0
+            val encontrada = db.rawQuery(
+                sql,
+                arrayOf(idReservaLocal.toString())
+            ).use { cursor ->
+                if (!cursor.moveToFirst()) {
+                    false
+                } else {
+                    idServidor =
+                        if (cursor.isNull(0)) 0 else cursor.getInt(0)
                     idCancha = cursor.getInt(1)
                     idClienteLocal = cursor.getInt(2)
                     horaInicio = cursor.getLong(3)
@@ -726,79 +752,117 @@ class SyncRepository(context: Context) {
                     precio = cursor.getDouble(5)
                     montoRecibido = cursor.getDouble(6)
                     estado = cursor.getString(7)
-                    idUsuario = if (!cursor.isNull(8)) cursor.getInt(8) else 1
+                    idUsuario = if (cursor.isNull(8)) 1 else cursor.getInt(8)
+                    true
                 }
             }
 
+            if (!encontrada) {
+                Log.w(TAG, "No existe la reserva local $idReservaLocal")
+                return false
+            }
+
+            // No adivinar el ID de Azure usando cancha y hora.
             if (idServidor <= 0) {
-                try {
-                    val listaAzure = RetrofitClient.apiService.getReservas()
-                    val match = listaAzure.lastOrNull { r ->
-                        r.idCancha == idCancha &&
-                                Math.abs(
-                                    (isoFormat.parse(r.horaInicio)?.time ?: 0L) - horaInicio
-                                ) < 60_000L
-                    }
-                    if (match != null) {
-                        idServidor = match.idReserva
-                        val valId = ContentValues().apply {
-                            put(ReservaContrato.COLUMNA_ID_SERVIDOR, idServidor)
-                        }
-                        db.update(
-                            ReservaContrato.TABLA_RESERVAS,
-                            valId,
-                            "${ReservaContrato.COLUMNA_ID} = ?",
-                            arrayOf(idReservaLocal.toString())
-                        )
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Error buscando idServidor en Azure: ${e.message}")
+                Log.w(
+                    TAG,
+                    "Reserva local $idReservaLocal sin ID de Azure; " +
+                            "debe procesarse mediante enviarReservaPendiente()"
+                )
+                return false
+            }
+
+            // Evitar usar un ID de Azure asociado a otra reserva local.
+            if (existeReservaLocalConServidor(db, idServidor)) {
+                val esEstaReserva = db.rawQuery(
+                    """
+                    SELECT ${ReservaContrato.COLUMNA_ID}
+                    FROM ${ReservaContrato.TABLA_RESERVAS}
+                    WHERE ${ReservaContrato.COLUMNA_ID} = ?
+                      AND ${ReservaContrato.COLUMNA_ID_SERVIDOR} = ?
+                """.trimIndent(),
+                    arrayOf(idReservaLocal.toString(), idServidor.toString())
+                ).use { it.moveToFirst() }
+
+                if (!esEstaReserva) {
+                    Log.e(
+                        TAG,
+                        "El ID de Azure $idServidor ya pertenece a otra reserva local"
+                    )
+                    return false
                 }
             }
 
+            val idClienteServidor =
+                resolverClienteServidorPorLocal(db, idClienteLocal)
+
+            if (idClienteServidor == null || idClienteServidor <= 0) {
+                Log.w(
+                    TAG,
+                    "No se encontró el ID de Azure del cliente local $idClienteLocal"
+                )
+                return false
+            }
+
+            val dto = ReservaDTO(
+                idReserva = idServidor,
+                horaInicio = isoFormat.format(Date(horaInicio)),
+                horaFin = isoFormat.format(Date(horaFin)),
+                precioReserva = precio,
+                estadoReserva = estado,
+                montoRecibido = montoRecibido,
+                idCliente = idClienteServidor,
+                idCancha = idCancha,
+                idUsuario = idUsuario
+            )
+
+            val resp = RetrofitClient.apiService.putReserva(dto)
+
+            if (!resp.isSuccessful) {
+                Log.e(
+                    TAG,
+                    "Error en PUT Reserva $idServidor: HTTP ${resp.code()} - " +
+                            "${resp.errorBody()?.string()}"
+                )
+                return false
+            }
+
+            // Solo marcar sincronizada después de confirmar el PUT.
+            marcarReservaSincronizada(
+                idReservaLocal.toLong(),
+                idServidor
+            )
+
+            Log.i(
+                TAG,
+                "Reserva local $idReservaLocal actualizada en Azure: $idServidor"
+            )
+
+            // Firestore es una copia complementaria; no debe bloquear Azure.
             try {
                 val updateFirestore = hashMapOf<String, Any>(
                     "estadoReserva" to estado,
                     "montoRecibido" to montoRecibido,
-                    "saldo" to (precio - montoRecibido)
+                    "saldo" to (precio - montoRecibido),
+                    "idServidorAzure" to idServidor
                 )
+
                 FirebaseManager.db.collection("reservas")
                     .document(idReservaLocal.toString())
                     .set(updateFirestore, SetOptions.merge())
-                Log.d(TAG, "Reserva #$idReservaLocal actualizada en Firestore.")
+
+                Log.d(TAG, "Reserva $idReservaLocal actualizada en Firestore")
             } catch (e: Exception) {
                 Log.w(TAG, "Aviso Firestore update: ${e.message}")
             }
 
-            if (idServidor > 0) {
-                val idClienteServidor =
-                    resolverClienteServidorPorLocal(db, idClienteLocal) ?: idClienteLocal
-                val dto = ReservaDTO(
-                    idReserva = idServidor,
-                    horaInicio = isoFormat.format(Date(horaInicio)),
-                    horaFin = isoFormat.format(Date(horaFin)),
-                    precioReserva = precio,
-                    estadoReserva = estado,
-                    montoRecibido = montoRecibido,
-                    idCliente = idClienteServidor,
-                    idCancha = idCancha,
-                    idUsuario = idUsuario
-                )
-                val resp = RetrofitClient.apiService.putReserva(dto)
-                if (resp.isSuccessful) {
-                    marcarReservaSincronizada(idReservaLocal.toLong(), idServidor)
-                    Log.i(TAG, "Reserva $idServidor actualizada con éxito en Azure")
-                    true
-                } else {
-                    Log.e(TAG, "Error en PUT Reserva $idServidor: ${resp.errorBody()?.string()}")
-                    false
-                }
-            } else {
-                Log.w(TAG, "No se pudo vincular la reserva local $idReservaLocal con Azure")
-                false
-            }
+            true
         } catch (e: Exception) {
-            Log.e(TAG, "Excepción en sincronizarActualizacionReserva: ${e.message}", e)
+            Log.e(
+                TAG,
+                "Excepción en sincronizarActualizacionReserva: ${e.message}",
+                e
+            )
             false
         }
     }
@@ -1314,7 +1378,15 @@ class SyncRepository(context: Context) {
             }
         }
     }
-
+    private fun reservaLocalPendiente(db: SQLiteDatabase, idLocal: Int): Boolean {
+        db.query(
+            ReservaContrato.TABLA_RESERVAS,
+            arrayOf(ReservaContrato.COLUMNA_ID),
+            "${ReservaContrato.COLUMNA_ID} = ? AND ${ReservaContrato.COLUMNA_SYNCED} = 0",
+            arrayOf(idLocal.toString()),
+            null, null, null
+        ).use { cursor -> return cursor.moveToFirst() }
+    }
     private suspend fun enviarReservaPendiente(p: ReservaPendiente) {
         val db = dbHelper.writableDatabase
         val idClienteServidor = asegurarClienteEnServidor(p.cliente)
@@ -1347,7 +1419,15 @@ class SyncRepository(context: Context) {
                 arrayOf(p.idLocal.toString())
             )
             // Enviar el estado local actual (pagos, cancelación) y marcar synced si funciona
-            sincronizarActualizacionReserva(p.idLocal)
+            val actualizada = sincronizarActualizacionReserva(p.idLocal)
+
+            if (!actualizada) {
+                Log.w(
+                    TAG,
+                    "La reserva local ${p.idLocal} sigue pendiente de sincronización"
+                )
+            }
+
             return
         }
 
@@ -1368,6 +1448,11 @@ class SyncRepository(context: Context) {
             val idAsignado = resp.body()?.idReserva
             if (idAsignado != null && idAsignado > 0) {
                 marcarReservaSincronizada(p.idLocal.toLong(), idAsignado)
+                runCatching {
+                    FirebaseManager.db.collection("reservas")
+                        .document(p.idLocal.toString())
+                        .update("idServidorAzure", idAsignado)
+                }
                 Log.i(TAG, "Reserva local ${p.idLocal} enviada a Azure con ID $idAsignado")
             } else {
                 Log.e(

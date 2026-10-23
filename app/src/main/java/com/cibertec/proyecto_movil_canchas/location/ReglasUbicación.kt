@@ -15,8 +15,8 @@ data class EvaluacionZona(
 )
 object ReglasUbicación {
     //Coordenadas de centro de lima
-    const val LATITUD_COMPLEJO = 37.4219195
-    const val LONGITUD_COMPLEJO =-122.083987
+    const val LATITUD_COMPLEJO = -12.117756
+    const val LONGITUD_COMPLEJO = -77.032416
     const val RADIO_PERMITIDO_M = 150f
     const val PRECISION_MAXIMA_M = 100f
 
